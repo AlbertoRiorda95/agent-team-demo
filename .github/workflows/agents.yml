@@ -97,7 +97,7 @@ jobs:
       # The model of each role, for the task and for every /agent request on it.
       MODEL: ${{ contains(fromJSON('["agent:designer","agent:frontend","agent:devops","agent:writer"]'), needs.route.outputs.label) && 'claude-sonnet-5-5' || 'claude-opus-5-5' }}
       # the stack's build and test tools: npm and npx (AGENTS.md > Commands)
-      TOOLS: "Read,Write,Edit,Glob,Grep,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(ls:*),Bash(cat:*),Bash(sed:*),Bash(mkdir:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue view:*),Bash(gh issue comment:*)"
+      TOOLS: "Read,Write,Edit,Glob,Grep,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(ls:*),Bash(cat:*),Bash(sed:*),Bash(mkdir:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh run view:*),Bash(gh run list:*),Bash(gh issue view:*),Bash(gh issue comment:*)"
       # In CI everything runs in the foreground: background subagents or commands are lost when the run ends.
       CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
       # Compact at 200K tokens instead of near the 1M window: every turn re-reads the context.
