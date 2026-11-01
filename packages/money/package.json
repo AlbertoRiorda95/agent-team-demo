@@ -1,0 +1,45 @@
+{
+  "name": "@albertoriorda95/money",
+  "version": "0.0.0",
+  "description": "Amounts, currencies, rounding and formatting for the Orders project.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlbertoRiorda95/agent-team-demo.git",
+    "directory": "packages/money"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@eslint/js": "~10.0.1",
+    "@types/node": "~24.19.2",
+    "eslint": "~10.14.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "~8.72.1",
+    "vitest": "~5.0.5"
+  }
+}
