@@ -1,0 +1,426 @@
+openapi: 3.1.0
+info:
+  title: Orders API
+  version: 0.1.0
+  description: |
+    The back office API of the Orders service. Source of truth for the routes
+    (docs/design/project.md > API surface): the service validates requests and
+    responses against these schemas, and the web app generates its types from
+    this file. Amounts are decimal strings with their currency, never floats.
+servers:
+  - url: /api/v1
+tags:
+  - name: auth
+  - name: orders
+  - name: health
+
+security:
+  - session: []
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Log in a staff member and start a session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Logged in; the session cookie is set
+          headers:
+            Set-Cookie:
+              description: The session cookie (HttpOnly, Secure, SameSite=Lax)
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyAttempts' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: End the current session
+      responses:
+        '204': { description: Logged out; the session cookie is cleared }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: The staff member of the current session
+      responses:
+        '200':
+          description: The logged-in staff member
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /orders:
+    get:
+      tags: [orders]
+      summary: List orders, newest first
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/OrderStatus' }
+        - name: q
+          in: query
+          description: Case-insensitive search in order number, customer name and email
+          schema: { type: string, maxLength: 200 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        '200':
+          description: One page of orders
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    post:
+      tags: [orders]
+      summary: Create an order (order source, API key)
+      description: |
+        Idempotent on externalReference: the same reference again returns the
+        existing order with 200 and creates nothing. The total is computed by
+        the service.
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+      responses:
+        '201':
+          description: Order created in status new
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '200':
+          description: An order with this externalReference already exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /orders/{number}:
+    parameters:
+      - $ref: '#/components/parameters/OrderNumber'
+    get:
+      tags: [orders]
+      summary: One order with its lines and status history
+      responses:
+        '200':
+          description: The order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /orders/{number}/status:
+    parameters:
+      - $ref: '#/components/parameters/OrderNumber'
+    post:
+      tags: [orders]
+      summary: Change the status of an order
+      description: |
+        Allowed: new → paid, new → cancelled, paid → shipped, paid → cancelled.
+        `version` must be the order's current version (optimistic concurrency).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StatusChangeRequest' }
+      responses:
+        '200':
+          description: The updated order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /health:
+    get:
+      tags: [health]
+      summary: Liveness and database reachability (served at /health, outside /api/v1)
+      servers:
+        - url: /
+      security: []
+      responses:
+        '200':
+          description: The service is up and the database reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [ok] }
+        '503':
+          description: The database is not reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [unavailable] }
+
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Staff session cookie set by /auth/login
+    apiKey:
+      type: http
+      scheme: bearer
+      description: The order source's API key (configuration), only for POST /orders
+
+  parameters:
+    OrderNumber:
+      name: number
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/OrderNumber' }
+
+  responses:
+    Unauthorized:
+      description: Not logged in, session expired, wrong credentials or wrong API key
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: No such order
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: The order changed meanwhile (version) or the transition is not allowed
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ConflictProblem' }
+    ValidationFailed:
+      description: The request is not valid
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyAttempts:
+      description: Too many failed logins for this email; try again later
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: { type: string, description: 'JSON path of the invalid field, e.g. items[0].quantity' }
+              message: { type: string }
+    ConflictProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [currentStatus, currentVersion]
+          properties:
+            currentStatus: { $ref: '#/components/schemas/OrderStatus' }
+            currentVersion: { type: integer }
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 1, maxLength: 256 }
+
+    StaffUser:
+      type: object
+      required: [id, email, name]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string }
+
+    CurrencyCode:
+      type: string
+      description: ISO 4217; supported now EUR, USD, GBP, JPY
+      enum: [EUR, USD, GBP, JPY]
+    Amount:
+      type: object
+      additionalProperties: false
+      required: [amount, currency]
+      properties:
+        amount:
+          type: string
+          description: Decimal string with at most the currency's minor digits (JPY 0, others 2)
+          pattern: '^-?\d+(\.\d+)?$'
+          examples: ['12.50', '1250']
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+
+    OrderNumber:
+      type: string
+      pattern: '^ORD-\d{6,}$'
+      examples: [ORD-000123]
+    OrderStatus:
+      type: string
+      enum: [new, paid, shipped, cancelled]
+
+    Address:
+      type: object
+      additionalProperties: false
+      required: [name, line1, city, postalCode, country]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        line1: { type: string, minLength: 1, maxLength: 200 }
+        line2: { type: string, maxLength: 200 }
+        city: { type: string, minLength: 1, maxLength: 100 }
+        postalCode: { type: string, minLength: 1, maxLength: 20 }
+        country: { type: string, pattern: '^[A-Z]{2}$', description: ISO 3166-1 alpha-2 }
+    Customer:
+      type: object
+      additionalProperties: false
+      required: [name, email]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        email: { type: string, format: email, maxLength: 254 }
+
+    OrderLineInput:
+      type: object
+      additionalProperties: false
+      required: [sku, name, quantity, unitPrice]
+      properties:
+        sku: { type: string, minLength: 1, maxLength: 64 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        quantity: { type: integer, minimum: 1 }
+        unitPrice:
+          type: string
+          description: Decimal string in the order's currency, not negative
+          pattern: '^\d+(\.\d+)?$'
+    CreateOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [externalReference, currency, customer, shippingAddress, items, shippingCost]
+      properties:
+        externalReference: { type: string, minLength: 1, maxLength: 100 }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        customer: { $ref: '#/components/schemas/Customer' }
+        shippingAddress: { $ref: '#/components/schemas/Address' }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { $ref: '#/components/schemas/OrderLineInput' }
+        shippingCost:
+          type: string
+          description: Decimal string in the order's currency, not negative
+          pattern: '^\d+(\.\d+)?$'
+
+    OrderLine:
+      type: object
+      required: [sku, name, quantity, unitPrice, lineTotal]
+      properties:
+        sku: { type: string }
+        name: { type: string }
+        quantity: { type: integer }
+        unitPrice: { $ref: '#/components/schemas/Amount' }
+        lineTotal: { $ref: '#/components/schemas/Amount' }
+    StatusChange:
+      type: object
+      required: [from, to, changedBy, at]
+      properties:
+        from: { $ref: '#/components/schemas/OrderStatus' }
+        to: { $ref: '#/components/schemas/OrderStatus' }
+        reason: { type: string }
+        changedBy:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        at: { type: string, format: date-time }
+
+    OrderSummary:
+      type: object
+      required: [number, status, customerName, total, createdAt]
+      properties:
+        number: { $ref: '#/components/schemas/OrderNumber' }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        customerName: { type: string }
+        total: { $ref: '#/components/schemas/Amount' }
+        createdAt: { type: string, format: date-time }
+    OrderPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OrderSummary' }
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer, description: Number of orders matching the filter }
+
+    Order:
+      type: object
+      required: [number, externalReference, status, version, currency, customer, shippingAddress, items, shippingCost, total, history, createdAt, updatedAt]
+      properties:
+        number: { $ref: '#/components/schemas/OrderNumber' }
+        externalReference: { type: string }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        version: { type: integer, minimum: 1 }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        customer: { $ref: '#/components/schemas/Customer' }
+        shippingAddress: { $ref: '#/components/schemas/Address' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OrderLine' }
+        shippingCost: { $ref: '#/components/schemas/Amount' }
+        total: { $ref: '#/components/schemas/Amount' }
+        history:
+          type: array
+          description: Status changes, oldest first
+          items: { $ref: '#/components/schemas/StatusChange' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    StatusChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [to, version]
+      properties:
+        to: { type: string, enum: [paid, shipped, cancelled] }
+        reason: { type: string, maxLength: 500, description: Only for cancelled }
+        version: { type: integer, minimum: 1 }
