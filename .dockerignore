@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+.opencode
+.agents
+.agent-team
+.handoff
+**/node_modules
+**/dist
+reports
+docs
+**/*.md
