@@ -19,6 +19,10 @@ COPY apps/web/ apps/web/
 RUN npm run build -w apps/web
 
 FROM ${NGINX_IMAGE}
+# The base image lags behind the Alpine security fixes (nginx, pcre2, musl,
+# zlib...): upgrade the OS packages at build time, then drop root again.
+USER root
+RUN apk upgrade --no-cache
 COPY --from=build --chown=nginx:nginx /app/apps/web/dist /usr/share/nginx/html
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 USER nginx
