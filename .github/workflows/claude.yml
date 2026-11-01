@@ -15,6 +15,7 @@ jobs:
     # Comments on an issue with the agent:split label belong to split.yml.
     if: contains(github.event.comment.body, '@claude') && !contains(github.event.issue.labels.*.name, 'agent:split')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       pull-requests: write
@@ -36,7 +37,6 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # the stack's build and test tools: npm and npx (AGENTS.md > Commands)
           claude_args: |
-            --max-turns 15
             --model claude-sonnet-5-5
             --allowedTools "Bash(npm:*),Bash(npx:*)"
       # Tokens and cost of this run: in the job summary, and as the usage artifact (scripts/usage.py).

@@ -26,7 +26,12 @@
       "Read(~/.conan2/**)",
       "Read(~/.cargo/credentials.toml)",
       "Read(./.env)",
-      "Read(./.env.*)",
+      "Read(./.env.local)",
+      "Read(./.env.*.local)",
+      "Read(./.env.production)",
+      "Read(./.env.development)",
+      "Read(./.env.staging)",
+      "Read(./.env.test)",
       "Read(./secrets/**)",
       "Read(./infra/litellm/.env)"
     ]
