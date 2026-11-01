@@ -1,0 +1,4 @@
+# Hosts the security agent may send requests to, one per line.
+# CUSTOMIZE: add your staging host (for example staging.your-domain.com). Never production.
+localhost
+127.0.0.1

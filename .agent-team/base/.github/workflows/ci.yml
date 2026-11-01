@@ -1,0 +1,183 @@
+# .github/workflows/ci.yml: the project's CI. It checks every PR, whoever
+# wrote it (you or an agent): build, test, static analysis, SBOM and licenses,
+# vulnerabilities.
+# CUSTOMIZE: the toolchain and the commands of your stack (SETUP.md fills them in).
+# Actions are pinned to a commit SHA; the comment says which release it is.
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read     # the team's packages on GitHub Packages (ci/registry.sh)
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      # CUSTOMIZE: toolchain (setup-python, setup-java, setup-go...) and cache
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      # CUSTOMIZE: the commands in AGENTS.md > Commands
+      # the team's registry (ci/registry.env): read token from the secret, else the job token
+      - run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck    # CUSTOMIZE: tsc --noEmit, mypy, pyright, go vet...
+      - run: npm run build
+      - run: npm test
+
+  # Static analysis for bugs and unsafe code. On a PR only the findings it
+  # introduces fail the check; on main the full report is kept as an artifact.
+  static-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          fetch-depth: 0    # the history up to the PR base, for the baseline
+      - run: ./ci/install-scanners.sh semgrep
+      - run: ./ci/scan.sh static
+        env:
+          BASELINE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: static-analysis
+          path: reports/semgrep.*
+          retention-days: 30
+
+  sbom-licenses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      # dependencies installed without running their scripts: license data come from them
+      # the team's registry (ci/registry.env): read token from the secret, else the job token
+      - run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: npm ci --ignore-scripts     # CUSTOMIZE
+      - run: ./ci/install-scanners.sh
+      - run: ./ci/scan.sh sbom-licenses
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: sbom-and-licenses
+          path: reports/
+          retention-days: 90
+
+
+  # UI tests: run only when playwright.config.ts exists (rename the .example).
+  # Report and screenshots per viewport are kept as the "ui-report" artifact.
+  ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      - id: enabled
+        run: |
+          if [ -f playwright.config.ts ]; then echo "on=true" >> "$GITHUB_OUTPUT";
+          else echo "No playwright.config.ts: UI tests not set up yet."; fi
+      - if: steps.enabled.outputs.on == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - if: steps.enabled.outputs.on == 'true'
+        run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - if: steps.enabled.outputs.on == 'true'
+        run: npm ci                                       # CUSTOMIZE
+      - if: steps.enabled.outputs.on == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.enabled.outputs.on == 'true'
+        run: npx playwright test
+      - if: always() && steps.enabled.outputs.on == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: ui-report
+          path: reports/ui/
+          retention-days: 30
+
+  vulnerabilities:
+    needs: sbom-licenses
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: sbom-and-licenses
+          path: reports/
+      - run: ./ci/install-scanners.sh
+      # the container image is scanned too, when the project has a Dockerfile
+      - name: Build the image
+        if: hashFiles('Dockerfile') != ''
+        run: |
+          docker build -t app:ci .
+          echo "IMAGE=app:ci" >> "$GITHUB_ENV"
+      - run: ./ci/scan.sh vulnerabilities
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: vulnerabilities
+          path: |
+            reports/grype.*
+            reports/trivy-*.json
+          retention-days: 90
+      # Optional: show the findings in the Security tab (code scanning; on private
+      # repositories it needs GitHub Code Security). Add "security-events: write"
+      # to the job permissions and uncomment.
+      # - uses: github/codeql-action/upload-sarif@<sha>  # CUSTOMIZE
+      #   if: always()
+      #   with:
+      #     sarif_file: reports/grype.sarif
+
+  # Reference documentation built from the code (OpenAPI, typedoc, pdoc...) by
+  # ci/reference.sh. Kept as an artifact, not committed: the writer's documents
+  # link to it. Add a Pages deploy here if you want it published.
+  reference-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      # CUSTOMIZE: toolchain and dependency install of your stack (generators read the code)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      # the team's registry (ci/registry.env): read token from the secret, else the job token
+      - run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: npm ci --ignore-scripts     # CUSTOMIZE
+      - run: ./ci/reference.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: reference-docs
+          path: reports/reference/
+          if-no-files-found: ignore
+          retention-days: 30

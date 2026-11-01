@@ -1,0 +1,12 @@
+# .github/dependabot.yml
+# The workflows pin every action to a commit (supply-chain safety). Dependabot
+# opens one PR a week when new versions exist, updating the pin and the comment.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

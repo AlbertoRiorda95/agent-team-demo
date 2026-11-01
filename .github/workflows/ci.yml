@@ -1,0 +1,258 @@
+# .github/workflows/ci.yml: the project's CI. It checks every PR, whoever
+# wrote it (you or an agent): build, test, static analysis, SBOM and licenses,
+# vulnerabilities.
+# Monorepo: build-test runs one job per package that changed (packages/money,
+# services/orders, apps/web); a change to the shared files (root package.json,
+# lockfile, tsconfig, lint config, .npmrc, ci/, this workflow) and every push to
+# main run all of them. packages/money is a standalone npm project; orders and
+# web are the root workspaces and take money from GitHub Packages.
+# The security scans always cover the whole repository.
+# Actions are pinned to a commit SHA; the comment says which release it is.
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read     # the team's packages on GitHub Packages (ci/registry.sh)
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Which packages to build and test: those that changed and exist.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          fetch-depth: 0
+      - id: pick
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, os, subprocess
+          targets = [
+              {"name": "money", "dir": "packages/money", "lock": "packages/money/package-lock.json",
+               "install": "npm ci --prefix packages/money", "run": "npm --prefix packages/money run"},
+              {"name": "orders", "dir": "services/orders", "lock": "package-lock.json",
+               "install": "npm ci", "run": "npm -w services/orders run"},
+              {"name": "web", "dir": "apps/web", "lock": "package-lock.json",
+               "install": "npm ci", "run": "npm -w apps/web run"},
+          ]
+          shared = ("package.json", "package-lock.json", ".npmrc", "ci/", ".github/workflows/ci.yml")
+          shared_prefixes = ("tsconfig", "eslint.config", ".prettierrc", ".eslintrc")
+          base = os.environ.get("BASE")
+          if base:
+              out = subprocess.run(["git", "diff", "--name-only", f"{base}...HEAD"],
+                                   capture_output=True, text=True, check=True).stdout.split()
+              run_all = any(f in shared or f.startswith(shared) or f.startswith(shared_prefixes) for f in out)
+              picked = [t for t in targets if run_all or any(f.startswith(t["dir"] + "/") for f in out)]
+          else:
+              picked = targets
+          picked = [t for t in picked if os.path.exists(os.path.join(t["dir"], "package.json"))]
+          print("matrix=" + json.dumps(picked))
+          EOF
+
+  build-test:
+    needs: changes
+    if: needs.changes.outputs.matrix != '[]'
+    name: build-test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.lock }}
+      # the team's registry (ci/registry.env): read token from the secret, else the job token
+      - run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: ${{ matrix.install }}
+      - run: ${{ matrix.run }} lint --if-present
+      - run: ${{ matrix.run }} typecheck --if-present
+      - run: ${{ matrix.run }} build --if-present
+      - run: ${{ matrix.run }} test --if-present
+
+  # One stable check for branch protection: green when every package that ran passed.
+  ci-ok:
+    needs: [changes, build-test]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -q -e failure -e cancelled; then exit 1; fi
+
+  # Static analysis for bugs and unsafe code. On a PR only the findings it
+  # introduces fail the check; on main the full report is kept as an artifact.
+  static-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          fetch-depth: 0    # the history up to the PR base, for the baseline
+      - run: ./ci/install-scanners.sh semgrep
+      - run: ./ci/scan.sh static
+        env:
+          BASELINE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: static-analysis
+          path: reports/semgrep.*
+          retention-days: 30
+
+  sbom-licenses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+      # dependencies installed without running their scripts: license data come from them
+      # the team's registry (ci/registry.env): read token from the secret, else the job token
+      - run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: |
+          if [ -f package-lock.json ]; then npm ci --ignore-scripts; fi
+          if [ -f packages/money/package-lock.json ]; then npm ci --ignore-scripts --prefix packages/money; fi
+      - run: ./ci/install-scanners.sh
+      - run: ./ci/scan.sh sbom-licenses
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: sbom-and-licenses
+          path: reports/
+          retention-days: 90
+
+
+  # UI tests of the web app: run once apps/web has its package.json and playwright.config.ts.
+  # Report and screenshots per viewport are kept as the "ui-report" artifact.
+  ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      - id: enabled
+        run: |
+          if [ -f apps/web/playwright.config.ts ] && [ -f apps/web/package.json ]; then echo "on=true" >> "$GITHUB_OUTPUT";
+          else echo "No web app with apps/web/playwright.config.ts yet: UI tests not set up."; fi
+      - if: steps.enabled.outputs.on == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - if: steps.enabled.outputs.on == 'true'
+        run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - if: steps.enabled.outputs.on == 'true'
+        run: npm ci
+      - if: steps.enabled.outputs.on == 'true'
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - if: steps.enabled.outputs.on == 'true'
+        working-directory: apps/web
+        run: npx playwright test
+      - if: always() && steps.enabled.outputs.on == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: ui-report
+          path: apps/web/reports/ui/
+          retention-days: 30
+
+  vulnerabilities:
+    needs: sbom-licenses
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: sbom-and-licenses
+          path: reports/
+      - run: ./ci/install-scanners.sh
+      - run: ./ci/scan.sh vulnerabilities
+      # the container images are scanned too, once the services have a Dockerfile
+      # (build context: the repository root)
+      - name: Build and scan the images
+        if: hashFiles('services/orders/Dockerfile', 'apps/web/Dockerfile') != ''
+        run: |
+          source ci/scanners.env
+          status=0
+          for d in services/orders apps/web; do
+            [ -f "$d/Dockerfile" ] || continue
+            name=$(basename "$d")
+            docker build -t "$name:ci" -f "$d/Dockerfile" .
+            trivy image --format json --output "reports/trivy-image-$name.json" "$name:ci"
+            trivy image --severity "$TRIVY_FAIL_SEVERITY" --exit-code 1 "$name:ci" || status=1
+          done
+          exit $status
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: vulnerabilities
+          path: |
+            reports/grype.*
+            reports/trivy-*.json
+          retention-days: 90
+      # Optional: show the findings in the Security tab (code scanning; on private
+      # repositories it needs GitHub Code Security). Add "security-events: write"
+      # to the job permissions and uncomment.
+      # - uses: github/codeql-action/upload-sarif@<sha>  # CUSTOMIZE
+      #   if: always()
+      #   with:
+      #     sarif_file: reports/grype.sarif
+
+  # Reference documentation built from the code (OpenAPI, typedoc, pdoc...) by
+  # ci/reference.sh. Kept as an artifact, not committed: the writer's documents
+  # link to it. Add a Pages deploy here if you want it published.
+  reference-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      # generators read the code: Node and the dependencies of every package
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+      # the team's registry (ci/registry.env): read token from the secret, else the job token
+      - run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: |
+          if [ -f package-lock.json ]; then npm ci --ignore-scripts; fi
+          if [ -f packages/money/package-lock.json ]; then npm ci --ignore-scripts --prefix packages/money; fi
+      - run: ./ci/reference.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: reference-docs
+          path: reports/reference/
+          if-no-files-found: ignore
+          retention-days: 30

@@ -1,0 +1,8 @@
+{
+  "harnesses": ["claude", "opencode"],
+  "runners": {"writer": "opencode"},
+  "ci": "github",
+  "tracker": "github",
+  "roles": ["designer", "frontend", "backend", "devops", "optimizer", "security", "writer"],
+  "features": ["ci-agents", "team-tasks", "split", "dispatch", "spec-sync"]
+}

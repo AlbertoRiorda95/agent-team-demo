@@ -1,0 +1,55 @@
+# .github/workflows/claude.yml
+name: Claude
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    # Comments on an issue with the agent:split label belong to split.yml.
+    if: contains(github.event.comment.body, '@claude') && !contains(github.event.issue.labels.*.name, 'agent:split')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967  # v1.0.252
+        id: claude
+        env:
+          # In CI everything runs in the foreground: background subagents or commands are lost when the run ends.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          # Compact at 200K tokens instead of near the 1M window: every turn re-reads the context.
+          CLAUDE_CODE_AUTO_COMPACT_WINDOW: "200000"
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # the stack's build and test tools: npm and npx (AGENTS.md > Commands)
+          claude_args: |
+            --max-turns 15
+            --model claude-sonnet-5-5
+            --allowedTools "Bash(npm:*),Bash(npx:*)"
+      # Tokens and cost of this run: in the job summary, and as the usage artifact (scripts/usage.py).
+      - name: Usage
+        if: always()
+        env:
+          RESULT: ${{ steps.claude.outputs.execution_file }}
+          TITLE: "@claude #${{ github.event.issue.number || github.event.pull_request.number }}"
+        run: python3 scripts/usage.py claude-result "$RESULT" --title "$TITLE" --json "$RUNNER_TEMP/usage.jsonl"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: usage-${{ github.job }}
+          path: ${{ runner.temp }}/usage.jsonl
+          if-no-files-found: ignore
+          retention-days: 90

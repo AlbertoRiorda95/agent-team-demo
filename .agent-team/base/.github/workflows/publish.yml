@@ -1,0 +1,39 @@
+# .github/workflows/publish.yml: publishes this project's package to the team's
+# registry when you push a v* tag, if ci/registry.env says PUBLISH_PACKAGE=yes.
+# Secrets: the publish token lives only in the "release" environment
+# (Settings > Environments > release: add REGISTRY_PUBLISH_TOKEN there, a
+# required reviewer, and "Selected tags: v*"), so no other workflow, and no
+# agent, can read it. On GitHub Packages the job token with "packages: write"
+# is enough and no secret is needed.
+# Actions are pinned to a commit SHA; the comment says which release it is.
+name: Publish
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      # CUSTOMIZE: toolchain, install and test commands of your stack (AGENTS.md > Commands)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: npm ci
+      - run: npm test
+      - run: ./ci/registry.sh publish
+        env:
+          REGISTRY_PUBLISH_TOKEN: ${{ secrets.REGISTRY_PUBLISH_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}

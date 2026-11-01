@@ -1,0 +1,22 @@
+# .github/workflows/workflow-lint.yml: checks the workflow files themselves.
+# A mistake in a workflow file (for example hashFiles() in a job-level `if`)
+# makes GitHub reject the whole file: no job runs and the PR shows no checks.
+# That cannot be caught from inside the same file, hence this separate workflow.
+# It has no path filter, so it can also be a required check.
+name: Workflow lint
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      - run: ./ci/install-scanners.sh actionlint
+      - run: actionlint

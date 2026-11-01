@@ -1,0 +1,53 @@
+// e2e/ui.spec.ts: the checks every screen gets. One entry per
+// screen and state of the specs in docs/design/. Mock the API with page.route()
+// so that every state (loading, empty, error, success) is reachable without a
+// backend. Rename to ui.spec.ts together with playwright.config.ts.
+// CUSTOMIZE: screens, states and mocks.
+import { test, expect, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+type Screen = { name: string; path: string; mock?: (page: Page) => Promise<void> };
+
+const screens: Screen[] = [
+  { name: 'home', path: '/' },
+  // { name: 'status-error', path: '/', mock: page => page.route('**/api/v1/health/ready',
+  //     r => r.fulfill({ status: 503, json: { status: 'down', checks: { database: 'failed' } } })) },
+];
+
+for (const s of screens) {
+  test(`${s.name}: layout, accessibility, screenshot`, async ({ page }, info) => {
+    if (s.mock) await s.mock(page);
+    await page.goto(s.path);
+    await page.waitForLoadState('networkidle');
+
+    // one full-page screenshot per screen and viewport, for the designer's review
+    await page.screenshot({ path: info.outputPath(`${s.name}.png`), fullPage: true });
+
+    // soft checks: every problem is reported in one run, not only the first
+    // no horizontal scroll at any viewport
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect.soft(overflow, 'horizontal scroll in px').toBeLessThanOrEqual(0);
+
+    // no automatic WCAG A/AA violations
+    const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    expect.soft(axe.violations.map(v => `${v.id}: ${v.help}`), 'accessibility (axe)').toEqual([]);
+
+    // touch targets of at least 44 px on the touch viewport
+    if (info.project.use.hasTouch) {
+      const small = await page.$$eval('button, [role=button], select, input:not([type=hidden])', els =>
+        els.filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.width < 44 || r.height < 44); })
+           .map(e => e.outerHTML.slice(0, 80)));
+      expect.soft(small, 'touch targets under 44 px').toEqual([]);
+    }
+
+    // keyboard focus is visible on the first focusable element
+    await page.keyboard.press('Tab');
+    const focus = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el || el === document.body) return 'nothing focusable';
+      const cs = getComputedStyle(el);
+      return cs.outlineStyle !== 'none' || cs.boxShadow !== 'none' ? 'visible' : 'invisible';
+    });
+    expect.soft(focus, 'keyboard focus').not.toBe('invisible');
+  });
+}

@@ -1,0 +1,38 @@
+# .github/workflows/spec-sync.yml
+# Feature spec-sync: when a change to docs/design/ reaches the default branch
+# (usually the merge of a design pull request, after its review), bring the
+# issues in line with the specs with scripts/create-issues.py: issues for new
+# breakdown rows, and a rewrite of the issues whose row changed while their
+# task has not started. It never closes or starts an issue: rows removed from a
+# spec are listed in the run summary, and dispatch stays yours.
+# The tracker's credentials are the same as for dispatch: the workflow token for
+# GitHub issues, or the secrets below for the other trackers.
+name: Spec sync
+on:
+  push:
+    paths: ["docs/design/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: spec-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - name: Issues from the specs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          { echo '### Spec sync'; echo; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/create-issues.py | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
