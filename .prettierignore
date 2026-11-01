@@ -1,0 +1,20 @@
+# Prettier formats the root workspaces' code. Documents, generated files and
+# the standalone packages/money project (its own style) are left alone.
+node_modules/
+dist/
+reports/
+coverage/
+package-lock.json
+packages/
+docs/
+.agent-team/
+.agents/
+.claude/
+.opencode/
+.github/
+scripts/
+ci/
+*.md
+services/orders/migrations/
+services/orders/openapi.yaml
+apps/web/src/api/schema.d.ts

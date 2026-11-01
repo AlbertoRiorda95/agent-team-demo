@@ -1,0 +1,34 @@
+{
+  "name": "@orders/orders-service",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Orders HTTP API (Fastify, Postgres, Drizzle).",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/main.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=../../.env --import tsx src/adapters/persistence/migrate.ts"
+  },
+  "dependencies": {
+    "ajv": "~8.20.0",
+    "ajv-formats": "~3.0.1",
+    "drizzle-orm": "~0.45.4",
+    "fastify": "~5.12.7",
+    "pg": "~8.23.1",
+    "yaml": "~2.9.1"
+  },
+  "devDependencies": {
+    "@types/pg": "~8.23.1",
+    "drizzle-kit": "~0.31.11",
+    "tsx": "~4.23.15"
+  }
+}
