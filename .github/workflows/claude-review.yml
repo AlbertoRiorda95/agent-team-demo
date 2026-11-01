@@ -93,7 +93,6 @@ jobs:
                under 400 words. Without an issue or a spec, say so in the comment.
             You are running unattended: never wait for a reply.
           claude_args: >-
-            --max-turns 15
             --model claude-sonnet-5-5
             --allowedTools "Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue view:*),Bash(gh pr comment:*)"
       # Tokens and cost of this run: in the job summary, and as the usage artifact (scripts/usage.py).

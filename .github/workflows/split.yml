@@ -88,7 +88,6 @@ jobs:
             new comment. The run ends with the proposal posted or with a comment
             explaining why there is none. Never add labels.
           claude_args: >-
-            --max-turns 25
             --model claude-sonnet-5-5
             --allowedTools "Read,Write,Glob,Grep,Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/sub_issues),Bash(python3 scripts/split-issue.py check:*),Bash(python3 scripts/split-issue.py propose:*)"
       # Tokens and cost of this run: in the job summary, and as the usage artifact (scripts/usage.py).

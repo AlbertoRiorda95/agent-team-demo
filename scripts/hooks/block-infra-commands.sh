@@ -22,7 +22,8 @@ FORBIDDEN="terraform${A}(apply|destroy)$E|kubectl${A}(apply|delete|patch|rollout
 # the credential files ci/registry.sh writes (and the usual ones): agents never read them
 H='(~|\$HOME|\$\{HOME\}|/home/[^/[:space:]]+|/root|/Users/[^/[:space:]]+)'
 SECRETS="$H/(\.npmrc|\.pypirc|\.netrc|\.config/pip/pip\.conf|\.pip/pip\.conf|\.m2/settings\.xml|\.gradle/gradle\.properties|\.conan2|\.cargo/credentials|\.docker/config\.json)\
-|pip3?$S+config$S+(list|get|debug)|-m$S+pip$S+config$S+(list|get|debug)"
+|pip3?$S+config$S+(list|get|debug)|-m$S+pip$S+config$S+(list|get|debug)\
+|(^|$S|/)\.env(\.(local|production|development|staging|test)|\.[^[:space:]/]*\.local)?($|$S|[;&|)'\"])|(^|$S|/)secrets/"
 
 if echo "$CMD" | grep -qE "$FORBIDDEN"; then
   echo "Blocked: this command changes a real environment or publishes a package or a tag." >&2

@@ -29,6 +29,7 @@
       "*": "allow",
       ".env": "deny",
       ".env.*": "deny",
+      ".env.example": "allow",
       "secrets/*": "deny",
       "infra/litellm/.env": "deny"
     }
