@@ -5,37 +5,74 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-type Screen = { name: string; path: string; mock?: (page: Page) => Promise<void> };
+type Screen = {
+  name: string;
+  path: string;
+  expect: string | RegExp;
+  mock?: (page: Page) => Promise<unknown>;
+};
 
 const screens: Screen[] = [
-  { name: 'home', path: '/' },
-  // { name: 'status-error', path: '/', mock: page => page.route('**/api/v1/health/ready',
-  //     r => r.fulfill({ status: 503, json: { status: 'down', checks: { database: 'failed' } } })) },
+  {
+    name: 'home-ok',
+    path: '/',
+    expect: 'Orders — API ok',
+    mock: (page) =>
+      page.route('**/health', (r) => r.fulfill({ status: 200, json: { status: 'ok' } })),
+  },
+  {
+    name: 'home-error',
+    path: '/',
+    expect: 'The API is unreachable.',
+    mock: (page) =>
+      page.route('**/health', (r) => r.fulfill({ status: 503, json: { status: 'unavailable' } })),
+  },
+  // never answers: the loading state stays visible
+  {
+    name: 'home-loading',
+    path: '/',
+    expect: 'Loading…',
+    mock: (page) => page.route('**/health', () => new Promise(() => undefined)),
+  },
 ];
 
 for (const s of screens) {
   test(`${s.name}: layout, accessibility, screenshot`, async ({ page }, info) => {
     if (s.mock) await s.mock(page);
     await page.goto(s.path);
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByText(s.expect)).toBeVisible();
 
     // one full-page screenshot per screen and viewport, for the designer's review
     await page.screenshot({ path: info.outputPath(`${s.name}.png`), fullPage: true });
 
     // soft checks: every problem is reported in one run, not only the first
     // no horizontal scroll at any viewport
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
     expect.soft(overflow, 'horizontal scroll in px').toBeLessThanOrEqual(0);
 
     // no automatic WCAG A/AA violations
     const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
-    expect.soft(axe.violations.map(v => `${v.id}: ${v.help}`), 'accessibility (axe)').toEqual([]);
+    expect
+      .soft(
+        axe.violations.map((v) => `${v.id}: ${v.help}`),
+        'accessibility (axe)',
+      )
+      .toEqual([]);
 
     // touch targets of at least 44 px on the touch viewport
     if (info.project.use.hasTouch) {
-      const small = await page.$$eval('button, [role=button], select, input:not([type=hidden])', els =>
-        els.filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.width < 44 || r.height < 44); })
-           .map(e => e.outerHTML.slice(0, 80)));
+      const small = await page.$$eval(
+        'button, [role=button], select, input:not([type=hidden])',
+        (els) =>
+          els
+            .filter((e) => {
+              const r = e.getBoundingClientRect();
+              return r.width > 0 && (r.width < 44 || r.height < 44);
+            })
+            .map((e) => e.outerHTML.slice(0, 80)),
+      );
       expect.soft(small, 'touch targets under 44 px').toEqual([]);
     }
 
