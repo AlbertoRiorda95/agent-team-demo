@@ -9,7 +9,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY services/orders/package.json services/orders/
 COPY apps/web/package.jso[n] apps/web/
-RUN npm ci --ignore-scripts -w services/orders
+# typescript is a root devDependency: -w alone would skip it (tsc: exit 127)
+RUN npm ci --ignore-scripts -w services/orders --include-workspace-root
 COPY tsconfig.base.json ./
 COPY services/orders/ services/orders/
 RUN npm run build -w services/orders
