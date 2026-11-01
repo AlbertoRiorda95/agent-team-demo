@@ -82,8 +82,17 @@ def claude_result(path):
                   "output": sum(m.get("outputTokens", 0) for m in models.values()),
                   "cache_read": sum(m.get("cacheReadInputTokens", 0) for m in models.values()),
                   "cache_write": sum(m.get("cacheCreationInputTokens", 0) for m in models.values())}
-    return [record("claude", r.get("session_id"), ", ".join(models) or None, None, tokens,
-                   r.get("total_cost_usd"), r.get("num_turns"), round((r.get("duration_ms") or 0) / 1000))]
+    row = record("claude", r.get("session_id"), ", ".join(models) or None, None, tokens,
+                 r.get("total_cost_usd"), r.get("num_turns"), round((r.get("duration_ms") or 0) / 1000))
+    row["denied"] = [denied(d) for d in r.get("permission_denials") or [] if isinstance(d, dict)]
+    return [row]
+
+
+def denied(d):
+    """What a permission denial tried: the tool and its command or file, on one line."""
+    i = d.get("tool_input") or {}
+    what = i.get("command") or i.get("file_path") or i.get("pattern") or json.dumps(i)
+    return f"{d.get('tool_name', '?')}: {' '.join(str(what).split())[:160]}"
 
 
 def claude_sessions(directory, project):
@@ -227,6 +236,11 @@ def table(rows, title):
         costs = [r["cost_usd"] for r in rows if r["cost_usd"] is not None]
         out.append(f"| **total** | | | {fmt(tot['input'])} | {fmt(tot['cache_read'])} | {fmt(tot['cache_write'])} | "
                    f"{fmt(tot['output'])} | {fmt(tot['total'])} | {'$%.4f' % sum(costs) if costs else '-'} | | |")
+    refused = [x for r in rows for x in r.get("denied") or []]
+    if refused:
+        out += ["", f"Permission denied ({len(refused)}): the agent tried these and was refused, "
+                    "each one costing a turn. Allow them in `--allowedTools` if they are right.", ""]
+        out += [f"- `{x}`" for x in refused]
     return head + "\n".join(out) + "\n"
 
 
