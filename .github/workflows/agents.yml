@@ -34,14 +34,14 @@ jobs:
       id-token: write
       actions: read
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       # the session runs as the role's agent (--agent): its tools, and the role's hooks
       # (scripts/hooks/role-hooks.sh), which apply only to a named agent
       - id: role
         env:
           LABEL: ${{ github.event.label.name }}
         run: echo "name=${LABEL#agent:}" >> "$GITHUB_OUTPUT"
-      - uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967  # v1.0.252
+      - uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6  # v1.0.264
         id: claude
         env:
           # In CI everything runs in the foreground: background subagents or commands are lost when the run ends.
@@ -126,13 +126,13 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Role
         id: role
         env:
           LABEL: ${{ github.event.label.name }}
         run: echo "name=${LABEL#agent:}" >> "$GITHUB_OUTPUT"
-      - uses: anomalyco/opencode/github@68bc26b7da1990ce10ffecfbc1e09eb13aa5d824  # v2.1.4
+      - uses: anomalyco/opencode/github@098aa7fd6e02b03d6fc410f0b052038c7d4c5e81  # v2.2.2
         with:
           model: ${{ vars.OPENCODE_MODEL }}
           agent: ${{ steps.role.outputs.name }}
