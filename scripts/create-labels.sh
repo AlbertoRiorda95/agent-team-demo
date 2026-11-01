@@ -18,6 +18,13 @@ gh label create "agent:split" --description "Ask Claude to propose a split into 
 gh label create "hold" --description "dispatch.py never starts this task" --color fbca04 --force
 # agent-team:end
 gh label create "alignment-needed" --description "An agent changed something other roles rely on" --color d93f0b --force
+# The tool of the agent that owns a task (ci/agent-owner.sh adds it on the first run).
+# agent-team:if harness_claude
+gh label create "runner:claude" --description "The tool of the agent that owns this task" --color c5def5 --force
+# agent-team:end
+# agent-team:if harness_opencode
+gh label create "runner:opencode" --description "The tool of the agent that owns this task" --color c5def5 --force
+# agent-team:end
 # agent-team:if harness_claude
 gh label create "ai-review" --description "Ask Claude to review this PR (claude-review.yml)" --color 0e8a16 --force
 # agent-team:end
