@@ -6,7 +6,7 @@
 # Pinned to a tag; pin by digest (image:<tag>@sha256:...) once resolved with
 # `docker buildx imagetools inspect` (see the MR).
 ARG NODE_IMAGE=node:24-alpine
-ARG NGINX_IMAGE=nginxinc/nginx-unprivileged:1.28-alpine
+ARG ALPINE_IMAGE=alpine:3.23
 
 FROM ${NODE_IMAGE} AS build
 WORKDIR /app
@@ -18,14 +18,16 @@ COPY tsconfig.base.json ./
 COPY apps/web/ apps/web/
 RUN npm run build -w apps/web
 
-FROM ${NGINX_IMAGE}
-# The base image lags behind the Alpine security fixes (nginx, pcre2, musl,
-# zlib...): upgrade the OS packages at build time, then drop root again.
-USER root
-RUN apk upgrade --no-cache
+FROM ${ALPINE_IMAGE}
+# nginx comes from the Alpine repository (patched, unlike the nginx image's
+# own build, which Trivy flags), with all OS packages upgraded. The package
+# creates the `nginx` user; the config keeps pid and temp files under /tmp.
+RUN apk upgrade --no-cache && apk add --no-cache nginx \
+    && rm -rf /etc/nginx/http.d /etc/nginx/conf.d
 COPY --from=build --chown=nginx:nginx /app/apps/web/dist /usr/share/nginx/html
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/web/nginx.conf /etc/nginx/nginx.conf
 USER nginx
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
   CMD ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+CMD ["nginx", "-g", "daemon off;"]
