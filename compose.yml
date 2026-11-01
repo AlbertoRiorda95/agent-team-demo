@@ -1,0 +1,51 @@
+# Local environment (and CI helper). Dev credentials only, never for a deployment.
+#   docker compose up -d            Postgres on 5432
+#   docker compose up -d --build    Postgres and the orders service on 3000
+# Rollback: docker compose down -v (drops the local data volume).
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: orders
+      POSTGRES_DB: orders
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orders -d orders"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    restart: unless-stopped
+
+  orders:
+    build:
+      context: .
+      dockerfile: services/orders/Dockerfile
+    environment:
+      DATABASE_URL: postgres://orders:orders@postgres:5432/orders
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+    restart: unless-stopped
+
+volumes:
+  pgdata:
