@@ -1,4 +1,8 @@
 # .github/workflows/claude.yml
+# @claude <request> on an issue or a pull request that no agent owns (yours,
+# Dependabot's...). A task's issue and its pull request belong to the agent that
+# started it: there @claude only answers to write "/agent <request>" instead
+# (agents.yml, ci/agent-owner.sh).
 name: Claude
 on:
   issue_comment:
@@ -11,9 +15,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  claude:
+  owner:
     # Comments on an issue with the agent:split label belong to split.yml.
-    if: contains(github.event.comment.body, '@claude') && !contains(github.event.issue.labels.*.name, 'agent:split')
+    if: >-
+      contains(github.event.comment.body, '@claude') &&
+      github.event.comment.user.type != 'Bot' &&
+      !contains(github.event.issue.labels.*.name, 'agent:split')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    outputs:
+      role: ${{ steps.owner.outputs.role }}
+    steps:
+      # the script of the default branch, never the pull request's
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - id: owner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          IS_PR: ${{ (github.event.issue.pull_request || github.event.pull_request) && 'true' || 'false' }}
+          RUNNERS: ${{ vars.AGENT_RUNNERS }}
+          DEFAULT_RUNNER: ${{ vars.AGENT_DEFAULT_RUNNER || 'claude' }}
+        run: ./ci/agent-owner.sh github | tee -a "$GITHUB_OUTPUT"
+      - if: steps.owner.outputs.role != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          ROLE: ${{ steps.owner.outputs.role }}
+          RUNNER: ${{ steps.owner.outputs.runner }}
+        run: |
+          gh issue comment "$NUMBER" --body "This task belongs to the $ROLE agent ($RUNNER): only it works on the issue and its pull request, with its folders, skills and model. Start your comment with \`/agent <request>\` to ask it."
+
+  claude:
+    needs: owner
+    if: needs.owner.outputs.role == ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

@@ -330,6 +330,10 @@
    "ci_gitlab and ci_agents"
   ],
   [
+   "ci/agent-owner.sh",
+   "ci_agents"
+  ],
+  [
    "ci/agent-mr.sh",
    "ci_gitlab and ci_agents and (harness_codex or harness_opencode)"
   ],
