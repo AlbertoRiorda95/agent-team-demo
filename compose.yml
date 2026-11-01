@@ -1,6 +1,6 @@
 # Local environment (and CI helper). Dev credentials only, never for a deployment.
 #   docker compose up -d            Postgres on 5432
-#   docker compose up -d --build    Postgres and the orders service on 3000
+#   docker compose up -d --build    Postgres, orders (3000) and web (5173, nginx 8080)
 # Rollback: docker compose down -v (drops the local data volume).
 services:
   postgres:
@@ -45,6 +45,26 @@ services:
         limits:
           cpus: "1"
           memory: 256M
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "5173:8080"
+    depends_on:
+      - orders
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
     restart: unless-stopped
 
 volumes:
