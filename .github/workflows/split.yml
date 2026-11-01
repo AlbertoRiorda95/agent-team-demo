@@ -45,10 +45,10 @@ jobs:
             "issue_comment:@claude ok")      echo "mode=create" >> "$GITHUB_OUTPUT" ;;
             *)                               echo "mode=propose" >> "$GITHUB_OUTPUT" ;;
           esac
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Propose the split
         if: steps.mode.outputs.mode == 'propose'
-        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967  # v1.0.252
+        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6  # v1.0.264
         id: claude
         env:
           # In CI everything runs in the foreground: background subagents or commands are lost when the run ends.
