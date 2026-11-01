@@ -1,0 +1,375 @@
+{
+ "_comment": "Which template files each profile keeps (first matching pattern wins; no match: always). See scripts/agentteam/profile.py.",
+ "files": [
+  [
+   "scripts/agentteam/__init__.py",
+   ""
+  ],
+  [
+   "scripts/agentteam/profile.py",
+   ""
+  ],
+  [
+   "scripts/agentteam/config.py",
+   ""
+  ],
+  [
+   "scripts/agentteam/core.py",
+   ""
+  ],
+  [
+   "scripts/agentteam/components.json",
+   ""
+  ],
+  [
+   "scripts/agent-team.py",
+   ""
+  ],
+  [
+   "scripts/agentteam/trackers/github.py",
+   "tracker_github"
+  ],
+  [
+   "scripts/agentteam/trackers/gitlab.py",
+   "tracker_gitlab"
+  ],
+  [
+   "scripts/agentteam/trackers/local.py",
+   "tracker_local"
+  ],
+  [
+   "scripts/agentteam/trackers/jira.py",
+   "tracker_jira"
+  ],
+  [
+   "scripts/agentteam/trackers/linear.py",
+   "tracker_linear"
+  ],
+  [
+   "scripts/agentteam/trackers/redmine.py",
+   "tracker_redmine"
+  ],
+  [
+   "scripts/split-issue.py",
+   "issues and split"
+  ],
+  [
+   "scripts/agentteam/plans.py",
+   "issues and split"
+  ],
+  [
+   "scripts/agentteam/*",
+   "issues"
+  ],
+  [
+   "scripts/create-issues.py",
+   "issues"
+  ],
+  [
+   "scripts/dispatch.py",
+   "issues"
+  ],
+  [
+   "scripts/tracker.py",
+   "issues"
+  ],
+  [
+   "docs/general/trackers.md",
+   "issues"
+  ],
+  [
+   "docs/agents/splitting.md",
+   "split"
+  ],
+  [
+   ".claude/agents/designer.md",
+   "harness_claude and role_designer"
+  ],
+  [
+   ".opencode/agents/designer.md",
+   "harness_opencode and role_designer"
+  ],
+  [
+   ".codex/agents/designer.toml",
+   "harness_codex and role_designer"
+  ],
+  [
+   "docs/roles/designer.md",
+   "role_designer"
+  ],
+  [
+   ".claude/agents/frontend.md",
+   "harness_claude and role_frontend"
+  ],
+  [
+   ".opencode/agents/frontend.md",
+   "harness_opencode and role_frontend"
+  ],
+  [
+   ".codex/agents/frontend.toml",
+   "harness_codex and role_frontend"
+  ],
+  [
+   "docs/roles/frontend.md",
+   "role_frontend"
+  ],
+  [
+   ".claude/agents/backend.md",
+   "harness_claude and role_backend"
+  ],
+  [
+   ".opencode/agents/backend.md",
+   "harness_opencode and role_backend"
+  ],
+  [
+   ".codex/agents/backend.toml",
+   "harness_codex and role_backend"
+  ],
+  [
+   "docs/roles/backend.md",
+   "role_backend"
+  ],
+  [
+   ".claude/agents/devops.md",
+   "harness_claude and role_devops"
+  ],
+  [
+   ".opencode/agents/devops.md",
+   "harness_opencode and role_devops"
+  ],
+  [
+   ".codex/agents/devops.toml",
+   "harness_codex and role_devops"
+  ],
+  [
+   "docs/roles/devops.md",
+   "role_devops"
+  ],
+  [
+   ".claude/agents/optimizer.md",
+   "harness_claude and role_optimizer"
+  ],
+  [
+   ".opencode/agents/optimizer.md",
+   "harness_opencode and role_optimizer"
+  ],
+  [
+   ".codex/agents/optimizer.toml",
+   "harness_codex and role_optimizer"
+  ],
+  [
+   "docs/roles/optimizer.md",
+   "role_optimizer"
+  ],
+  [
+   ".claude/agents/writer.md",
+   "harness_claude and role_writer"
+  ],
+  [
+   ".opencode/agents/writer.md",
+   "harness_opencode and role_writer"
+  ],
+  [
+   ".codex/agents/writer.toml",
+   "harness_codex and role_writer"
+  ],
+  [
+   "docs/roles/writer.md",
+   "role_writer"
+  ],
+  [
+   ".claude/agents/team.md",
+   "harness_claude and team_tasks"
+  ],
+  [
+   ".opencode/agents/team.md",
+   "harness_opencode and team_tasks"
+  ],
+  [
+   ".codex/agents/team.toml",
+   "harness_codex and team_tasks"
+  ],
+  [
+   "docs/roles/team.md",
+   "team_tasks"
+  ],
+  [
+   "docs/software/*",
+   "role_writer"
+  ],
+  [
+   "scripts/hooks/writer-writes.sh",
+   "harness_claude and role_writer"
+  ],
+  [
+   ".claude/skills/document/*",
+   "harness_claude and role_writer"
+  ],
+  [
+   ".agents/skills/document/*",
+   "(harness_codex or harness_opencode) and role_writer"
+  ],
+  [
+   ".claude/agents/security.md",
+   "harness_claude and role_security"
+  ],
+  [
+   ".opencode/agents/security.md",
+   "harness_opencode and role_security"
+  ],
+  [
+   ".codex/agents/security.toml",
+   "harness_codex and role_security"
+  ],
+  [
+   "docs/roles/security.md",
+   "role_security"
+  ],
+  [
+   "docs/roles/security-scope.txt",
+   "role_security"
+  ],
+  [
+   "docs/security/*",
+   "role_security"
+  ],
+  [
+   "scripts/git-hooks/*",
+   "issues and spec_sync"
+  ],
+  [
+   "scripts/hooks/security-*.sh",
+   "harness_claude and role_security"
+  ],
+  [
+   "scripts/hooks/lint-frontend.sh",
+   "harness_claude and role_frontend"
+  ],
+  [
+   "scripts/hooks/gate-test.sh",
+   "harness_claude"
+  ],
+  [
+   "scripts/hooks/alignment-check.sh",
+   "harness_claude"
+  ],
+  [
+   "scripts/hooks/role-hooks.sh",
+   "harness_claude"
+  ],
+  [
+   "scripts/hooks/*",
+   "harness_claude or harness_codex"
+  ],
+  [
+   ".claude/*",
+   "harness_claude"
+  ],
+  [
+   "CLAUDE.md",
+   "harness_claude"
+  ],
+  [
+   ".mcp.json",
+   "harness_claude"
+  ],
+  [
+   ".agents/skills/*",
+   "harness_codex or (harness_opencode and not harness_claude)"
+  ],
+  [
+   ".opencode/*",
+   "harness_opencode"
+  ],
+  [
+   "opencode.json",
+   "harness_opencode"
+  ],
+  [
+   ".codex/*",
+   "harness_codex"
+  ],
+  [
+   ".github/workflows/agents.yml",
+   "ci_github and ci_agents and tracker_github"
+  ],
+  [
+   ".github/workflows/dispatch.yml",
+   "ci_github and ci_agents and tracker_github and dispatch"
+  ],
+  [
+   ".github/workflows/split.yml",
+   "ci_github and ci_agents and tracker_github and split and harness_claude"
+  ],
+  [
+   ".github/workflows/spec-sync.yml",
+   "ci_github and issues and spec_sync"
+  ],
+  [
+   ".github/workflows/claude.yml",
+   "ci_github and ci_agents and harness_claude"
+  ],
+  [
+   ".github/workflows/claude-review.yml",
+   "ci_github and ci_agents and harness_claude"
+  ],
+  [
+   ".github/ISSUE_TEMPLATE/*",
+   "ci_github and tracker_github"
+  ],
+  [
+   ".github/*",
+   "ci_github"
+  ],
+  [
+   "scripts/create-labels.sh",
+   "tracker_github"
+  ],
+  [
+   ".gitlab/ci/agents.yml",
+   "ci_gitlab and ci_agents"
+  ],
+  [
+   "ci/agent-mr.sh",
+   "ci_gitlab and ci_agents and (harness_codex or harness_opencode)"
+  ],
+  [
+   ".gitlab/ci/spec-sync.yml",
+   "ci_gitlab and issues and spec_sync"
+  ],
+  [
+   ".gitlab/issue_templates/*",
+   "ci_gitlab and tracker_gitlab"
+  ],
+  [
+   ".gitlab/*",
+   "ci_gitlab"
+  ],
+  [
+   ".gitlab-ci.yml.example",
+   "ci_gitlab"
+  ],
+  [
+   "ci/*",
+   "ci_github or ci_gitlab"
+  ],
+  [
+   "infra/litellm/*",
+   "litellm"
+  ],
+  [
+   "e2e/*",
+   "role_frontend"
+  ],
+  [
+   "playwright.config.ts.example",
+   "role_frontend"
+  ]
+ ],
+ "json_keys": {
+  "opencode.json": {
+   "provider.litellm": "litellm"
+  }
+ },
+ "verbatim": []
+}

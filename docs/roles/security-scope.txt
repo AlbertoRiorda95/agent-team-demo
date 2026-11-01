@@ -1,0 +1,4 @@
+# Hosts the security agent may send requests to, one per line.
+# No staging environment yet: local only. Never production.
+localhost
+127.0.0.1

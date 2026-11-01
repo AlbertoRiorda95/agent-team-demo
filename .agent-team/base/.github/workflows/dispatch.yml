@@ -1,0 +1,44 @@
+# .github/workflows/dispatch.yml
+# Optional: when an issue closes (usually because you merged its pull request),
+# start the task issues that are now ready - no open dependency, a free slot for
+# their role - by adding their agent:<role> label (scripts/dispatch.py).
+# Off by default. To turn it on:
+#   1. repository variable AGENT_AUTODISPATCH = true
+#   2. secret AGENT_DISPATCH_TOKEN: a fine-grained personal access token (or an
+#      app token) with Issues read and write on this repository. Labels added
+#      with the default GITHUB_TOKEN would not start agents.yml.
+#   3. optional variables AGENT_DISPATCH_PER_ROLE (default 1) and
+#      AGENT_DISPATCH_MAX (default 3): tasks running at the same time.
+# Your review stays the gate: a task starts only after the ones it depends on
+# are merged, and only by you.
+name: Dispatch
+on:
+  issues:
+    types: [closed]
+  workflow_dispatch:
+
+concurrency:
+  group: dispatch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    if: vars.AGENT_AUTODISPATCH == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - name: Start the task issues that are now ready
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_DISPATCH_TOKEN }}
+          PER_ROLE: ${{ vars.AGENT_DISPATCH_PER_ROLE || '1' }}
+          MAX_TASKS: ${{ vars.AGENT_DISPATCH_MAX || '3' }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::AGENT_DISPATCH_TOKEN is not set: labels added with GITHUB_TOKEN do not start agents.yml."
+            exit 1
+          fi
+          python3 scripts/dispatch.py --apply --per-role "$PER_ROLE" --max "$MAX_TASKS"

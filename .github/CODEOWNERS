@@ -1,0 +1,10 @@
+# Critical paths always require your review.
+/services/orders/migrations/    @AlbertoRiorda95
+/services/orders/src/auth/      @AlbertoRiorda95
+/services/orders/openapi.yaml   @AlbertoRiorda95
+/packages/money/                @AlbertoRiorda95
+/.github/                       @AlbertoRiorda95
+/ci/                            @AlbertoRiorda95
+/.claude/                       @AlbertoRiorda95
+/.opencode/                     @AlbertoRiorda95
+/.npmrc                         @AlbertoRiorda95

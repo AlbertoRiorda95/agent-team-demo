@@ -1,0 +1,11 @@
+# Critical paths always require your review.
+# CUSTOMIZE: replace @your-username and the paths with the real ones.
+/migrations/          @your-username
+/src/server/auth/     @your-username
+/.github/             @your-username
+/ci/                  @your-username
+/.gitlab/             @your-username
+/.claude/             @your-username
+/.opencode/           @your-username
+/infra/               @your-username
+/deploy/              @your-username

@@ -1,0 +1,13 @@
+.claude/settings.local.json
+.env
+.env.*
+!.env.example
+infra/litellm/.env
+node_modules/
+# CI reports (saved as CI artifacts, not committed)
+reports/
+# security reports contain working exploits: keep them out of Git
+docs/security/*
+!docs/security/README.md
+# handoff notes between sessions (the handoff skill)
+.handoff/
