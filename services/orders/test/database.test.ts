@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/adapters/http/app.js';
 import { openDatabase, type Database } from '../src/adapters/persistence/database.js';
 import { applyMigrations } from '../src/adapters/persistence/migrations.js';
+import { fakeAuth, WEB } from './fake-auth.js';
 import { testDatabaseUrl } from './test-database.js';
 
 const opened: Database[] = [];
@@ -24,7 +25,7 @@ describe('with the database down', () => {
   it('GET /health answers 503 unavailable', async () => {
     // port 1 on localhost: connection refused at once
     const database = open('postgres://orders:orders@127.0.0.1:1/orders');
-    const app = buildApp({ databaseHealth: database.health });
+    const app = buildApp({ databaseHealth: database.health, auth: fakeAuth(), web: WEB });
     const res = await app.inject({ method: 'GET', url: '/health' });
     await app.close();
     expect(res.statusCode).toBe(503);
@@ -39,7 +40,7 @@ describe.runIf(databaseUrl)('with the test database (DATABASE_URL)', () => {
 
   it('GET /health answers 200 ok', async () => {
     const database = open(url);
-    const app = buildApp({ databaseHealth: database.health });
+    const app = buildApp({ databaseHealth: database.health, auth: fakeAuth(), web: WEB });
     const res = await app.inject({ method: 'GET', url: '/health' });
     await app.close();
     expect(res.statusCode).toBe(200);

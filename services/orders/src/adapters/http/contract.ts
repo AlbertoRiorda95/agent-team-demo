@@ -28,6 +28,14 @@ export interface Operation {
   /** The same path in Fastify's `:param` style. */
   readonly url: string;
   readonly schema: RequestSchemas;
+  /**
+   * The effective `security` of the operation (its own, or the document's):
+   * one entry per alternative, each the names of the schemes it requires.
+   * `[]` means public; an alternative `[]` makes authentication optional.
+   */
+  readonly security: readonly (readonly string[])[];
+  /** True when the operation declares a request body. */
+  readonly hasRequestBody: boolean;
 }
 
 export function loadContract(path: string = CONTRACT_PATH): JsonObject {
@@ -44,6 +52,7 @@ export function listOperations(doc: JsonObject): Operation[] {
   if (!isObject(resolved)) throw new Error('The contract is not an object');
   const paths = asObject(resolved['paths']);
   const rootPrefix = serverPrefix(resolved['servers']) ?? '';
+  const rootSecurity = securityOf(resolved['security']) ?? [];
   const operations: Operation[] = [];
 
   for (const [rawPath, item] of Object.entries(paths)) {
@@ -63,6 +72,8 @@ export function listOperations(doc: JsonObject): Operation[] {
         path,
         url: path.replace(/\{([^}]+)\}/g, ':$1'),
         schema: requestSchemas([...pathParams, ...asArray(op['parameters'])], op['requestBody']),
+        security: securityOf(op['security']) ?? rootSecurity,
+        hasRequestBody: isObject(op['requestBody']),
       });
     }
   }
@@ -119,6 +130,12 @@ function resolvePointer(root: JsonObject, ref: string): unknown {
     current = current[key];
   }
   return current;
+}
+
+/** `[{ session: [] }]` → `[['session']]`; `undefined` when not declared at this level. */
+function securityOf(security: unknown): string[][] | undefined {
+  if (!Array.isArray(security)) return undefined;
+  return security.map((requirement) => Object.keys(asObject(requirement)));
 }
 
 function serverPrefix(servers: unknown): string | undefined {
