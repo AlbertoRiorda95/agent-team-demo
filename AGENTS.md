@@ -158,7 +158,8 @@ When you are asked to propose how to split an issue into task issues
 
 <!-- agent-team:end -->
 ## Specs before code
-Implementation tasks start from a spec in `docs/design/` marked `ready: yes`
+Implementation tasks (not issues with the `request` label: see
+`docs/agents/requests.md`) start from a spec in `docs/design/` marked `ready: yes`
 (see `docs/design/_spec-template.md`). The project design is
 `docs/design/project.md`.
 - If the task has no spec, the spec is not ready, or it does not cover what

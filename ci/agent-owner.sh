@@ -12,7 +12,8 @@
 #            (the issue or pull request), IS_PR (true on a pull request), LABEL
 #            (the label just added, issues event), RUNNERS (AGENT_RUNNERS),
 #            DEFAULT_RUNNER, RECORD_RUNNER=1 to add the runner label. Prints
-#            label, role, runner, issue, pr, branch, mode (task or iterate) as
+#            label, role, runner, issue, pr, branch, mode (task or iterate), request (true when
+#            the issue has the request label) as
 #            key=value lines for $GITHUB_OUTPUT, and why=... when nobody owns it
 #            (empty role).
 #   gitlab HARNESS   for .gitlab/ci/agents.yml, with TASK_ID: prints the role of
@@ -69,8 +70,10 @@ github() {
       gh issue edit "$issue" --add-label "runner:$runner" >/dev/null
     fi
   fi
-  printf 'label=%s\nrole=%s\nrunner=%s\nissue=%s\npr=%s\nbranch=%s\nmode=%s\n' \
-    "$label" "${label#agent:}" "$runner" "$issue" "$pr" "$branch" "$mode"
+  request=false
+  grep -qx request <<<"$labels" && request=true
+  printf 'label=%s\nrole=%s\nrunner=%s\nissue=%s\npr=%s\nbranch=%s\nmode=%s\nrequest=%s\n' \
+    "$label" "${label#agent:}" "$runner" "$issue" "$pr" "$branch" "$mode" "$request"
 }
 
 gitlab() {
