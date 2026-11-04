@@ -30,7 +30,7 @@ export interface paths {
                 /** @description Logged in; the session cookie is set */
                 200: {
                     headers: {
-                        /** @description The session cookie (HttpOnly, Secure, SameSite=Lax) */
+                        /** @description The session cookie (HttpOnly, SameSite=Lax, Path=/; Secure in production) */
                         "Set-Cookie"?: string;
                         [name: string]: unknown;
                     };
@@ -76,6 +76,7 @@ export interface paths {
                     content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
             };
         };
         delete?: never;
@@ -288,6 +289,7 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
                 404: components["responses"]["NotFound"];
                 409: components["responses"]["Conflict"];
                 422: components["responses"]["ValidationFailed"];
@@ -493,6 +495,18 @@ export interface components {
     responses: {
         /** @description Not logged in, session expired, wrong credentials or wrong API key */
         Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description A state-changing staff request that is not JSON, or whose Origin header
+         *     is missing or differs from the web app's origin (CSRF protection)
+         */
+        Forbidden: {
             headers: {
                 [name: string]: unknown;
             };

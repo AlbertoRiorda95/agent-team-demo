@@ -1,37 +1,19 @@
-import { useHealth, type HealthState } from './useHealth';
+import { Route, Routes } from 'react-router';
+import { AuthProvider } from './auth/AuthProvider';
+import { HomePage } from './pages/HomePage';
+import { LoginPage } from './pages/LoginPage';
+import { Shell } from './Shell';
 
-export function HealthPanel({ state, onRetry }: { state: HealthState; onRetry: () => void }) {
-  if (state === 'loading') {
-    return (
-      <div className="panel" aria-busy="true">
-        <span className="spinner" aria-hidden="true" />
-        <span role="status">Loading…</span>
-      </div>
-    );
-  }
-  if (state === 'error') {
-    return (
-      <div className="panel panel-error" role="alert">
-        <span>The API is unreachable.</span>
-        <button type="button" onClick={onRetry}>
-          Retry
-        </button>
-      </div>
-    );
-  }
-  return (
-    <div className="panel">
-      <span role="status">Orders — API ok</span>
-    </div>
-  );
-}
-
+/** The routes; the router (browser or memory) is provided by the caller. */
 export function App() {
-  const { state, retry } = useHealth();
   return (
-    <main>
-      <h1>Orders</h1>
-      <HealthPanel state={state} onRetry={retry} />
-    </main>
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<Shell />}>
+          <Route path="/" element={<HomePage />} />
+        </Route>
+      </Routes>
+    </AuthProvider>
   );
 }
