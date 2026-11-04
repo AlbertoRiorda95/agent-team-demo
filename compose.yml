@@ -32,6 +32,9 @@ services:
     environment:
       DATABASE_URL: postgres://orders:orders@postgres:5432/orders
       PORT: "3000"
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:5173}
+      # no default on purpose: set it in .env (see .env.example), openssl rand -hex 32
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env (openssl rand -hex 32)}
     ports:
       - "3000:3000"
     depends_on:
