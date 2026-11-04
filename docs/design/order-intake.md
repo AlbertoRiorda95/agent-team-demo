@@ -46,7 +46,7 @@ or a wrong key gives 401; money values are never floats.
 4. **Seed** (developer): `npm run seed -w services/orders [-- --count N]` inserts
    N demo orders (default 40) in several currencies and statuses through the
    same application use case for the order, with `externalReference` `seed-0001`…, so running
-   it twice adds nothing (**assumed**, see Q3). Orders beyond `new` also get their
+   it twice adds nothing. Orders beyond `new` also get their
    status history (chain of StatusChange rows, `changedBy` the seed staff user,
    a reason on cancelled, `version` = 1 + changes), written directly by the
    seed so M2 screens have history to show. The seed staff user
