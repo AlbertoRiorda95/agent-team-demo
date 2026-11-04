@@ -253,3 +253,21 @@ test('flow: an expired session returns to login, then to the page, external next
   await submitLogin(page);
   await expect(page).toHaveURL(/localhost:\d+\/$/);
 });
+
+test('flow: a signed-in user opening /login?next=//evil.test lands on /', async ({ page }) => {
+  await session(page, true);
+  await healthOk(page);
+  await page.goto('/login?next=' + encodeURIComponent('//evil.test'));
+  await expect(page.getByText('Ana')).toBeVisible();
+  await expect(page).toHaveURL(/localhost:\d+\/$/);
+});
+
+test('flow: a 401 on a staff request while signed in returns to login', async ({ page }) => {
+  await session(page, true);
+  await healthOk(page);
+  await page.route('**/api/v1/auth/logout', (r) => r.fulfill({ status: 401, json: {} }));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Log out' }).click();
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+  await expect(page).toHaveURL(/\/login/);
+});

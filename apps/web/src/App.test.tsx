@@ -1,7 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, expect, test, vi } from 'vitest';
 import { App } from './App';
+import { logout } from './api/client';
+import { AuthProvider } from './auth/AuthProvider';
+import { Shell } from './Shell';
 import { safeNext } from './auth/next';
 
 const user = { id: '1b4e28ba-2fa1-11d2-883f-0016d3cca427', email: 'ana@shop.test', name: 'Ana' };
@@ -19,8 +22,10 @@ function stubApi(routes: Record<string, Handler>) {
   return fn;
 }
 
-const json = (status: number, body: unknown, headers: Record<string, string> = {}) => () =>
-  new Response(JSON.stringify(body), { status, headers });
+const json =
+  (status: number, body: unknown, headers: Record<string, string> = {}) =>
+  () =>
+    new Response(JSON.stringify(body), { status, headers });
 const none = (status: number) => () => new Response(null, { status });
 
 function Where() {
@@ -151,6 +156,47 @@ test('a signed-in user opening /login is sent to next, an external next is ignor
   renderAt('/login?next=https%3A%2F%2Fevil.test');
   expect(await screen.findByText('Ana')).toBeTruthy();
   expect(screen.getByTestId('where').textContent).toBe('/');
+});
+
+test('a signed-in user opening /login?next=//evil.test lands on /', async () => {
+  stubApi({
+    'GET /api/v1/auth/me': json(200, user),
+    'GET /health': json(200, { status: 'ok' }),
+  });
+  renderAt('/login?next=' + encodeURIComponent('//evil.test'));
+  expect(await screen.findByText('Ana')).toBeTruthy();
+  expect(screen.getByTestId('where').textContent).toBe('/');
+});
+
+test('an expired session on a staff request lands on /login?next=<page>', async () => {
+  stubApi({
+    'GET /api/v1/auth/me': json(200, user),
+    'POST /api/v1/auth/logout': json(401, {}),
+  });
+  // there is no staff screen with a path yet: a test page makes a staff request
+  render(
+    <MemoryRouter initialEntries={['/orders?page=2']}>
+      <AuthProvider>
+        <Routes>
+          <Route element={<Shell />}>
+            <Route
+              path="/orders"
+              element={
+                <button type="button" onClick={() => void logout().catch(() => undefined)}>
+                  Staff request
+                </button>
+              }
+            />
+          </Route>
+          <Route path="/login" element={<h1>Log in</h1>} />
+        </Routes>
+        <Where />
+      </AuthProvider>
+    </MemoryRouter>,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Staff request' }));
+  expect(await screen.findByRole('heading', { name: 'Log in' })).toBeTruthy();
+  expect(screen.getByTestId('where').textContent).toBe('/login?next=%2Forders%3Fpage%3D2');
 });
 
 test('Log out calls the API and goes to /login', async () => {
