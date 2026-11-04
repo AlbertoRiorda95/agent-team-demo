@@ -91,6 +91,7 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgres://orders:orders@localhost:5432/orders_test
+      PUBLIC_ORIGIN: http://localhost:5173
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
@@ -103,6 +104,13 @@ jobs:
         env:
           REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
+      # random key per run for the orders tests; never committed
+      - name: Session key for the orders tests
+        if: matrix.name == 'orders'
+        run: |
+          key=$(openssl rand -hex 32)
+          echo "::add-mask::$key"
+          echo "SESSION_SECRET=$key" >> "$GITHUB_ENV"
       - run: ${{ matrix.install }}
       - run: ${{ matrix.run }} lint --if-present
       - run: ${{ matrix.run }} typecheck --if-present
