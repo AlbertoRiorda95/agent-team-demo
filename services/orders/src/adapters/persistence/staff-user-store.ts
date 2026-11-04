@@ -29,6 +29,15 @@ export function createStaffUserStore(db: Db): StaffUserStore {
       return rows[0];
     },
 
+    async findCredentialsByEmail(email) {
+      const rows = await db
+        .select({ user: publicColumns, passwordHash: staffUsers.passwordHash })
+        .from(staffUsers)
+        .where(eq(staffUsers.email, email))
+        .limit(1);
+      return rows[0];
+    },
+
     async insert(user) {
       try {
         const rows = await db.insert(staffUsers).values(user).returning(publicColumns);

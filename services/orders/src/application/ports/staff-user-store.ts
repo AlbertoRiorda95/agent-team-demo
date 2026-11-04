@@ -24,6 +24,10 @@ export class EmailAlreadyUsedError extends Error {
 /** Port: persistence of staff accounts. Emails are passed already normalized. */
 export interface StaffUserStore {
   findByEmail(email: string): Promise<StaffUserRecord | undefined>;
+  /** The account with its password hash, for the login only. */
+  findCredentialsByEmail(
+    email: string,
+  ): Promise<{ user: StaffUserRecord; passwordHash: string } | undefined>;
   /** Inserts an active account. Throws EmailAlreadyUsedError on a duplicate email. */
   insert(user: NewStaffUser): Promise<StaffUserRecord>;
   /** Sets the account inactive and deletes all its sessions, atomically. */
