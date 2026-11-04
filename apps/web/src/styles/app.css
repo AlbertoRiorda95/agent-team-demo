@@ -71,6 +71,73 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  margin-right: auto;
+  color: var(--color-fg);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.topbar-user {
+  color: var(--color-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.topbar-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-danger);
+}
+
+.form {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field input {
+  min-height: var(--target-min);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-fg);
+  font: inherit;
+}
+
+.form-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  color: var(--color-danger);
+}
+
 :focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
