@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openDatabase, type Database } from '../src/adapters/persistence/database.js';
 import { applyMigrations } from '../src/adapters/persistence/migrations.js';
 import { sessions, staffUsers } from '../src/adapters/persistence/schema.js';
+import { testDatabaseUrl } from './test-database.js';
 
 const SERVICE_DIR = fileURLToPath(new URL('..', import.meta.url));
 const ENTRY = 'src/adapters/cli/user.ts';
@@ -81,7 +82,15 @@ describe('input errors (no database needed)', () => {
   });
 
   it('never takes the password from a flag', async () => {
-    const res = await run(['create', '--email', uniqueEmail(), '--name', 'Ann', '--password', PASSWORD]);
+    const res = await run([
+      'create',
+      '--email',
+      uniqueEmail(),
+      '--name',
+      'Ann',
+      '--password',
+      PASSWORD,
+    ]);
     expect(res.code).toBe(2);
     expect(res.stderr).toContain('Usage: npm run user:create');
   });
@@ -111,10 +120,10 @@ describe('input errors (no database needed)', () => {
   });
 });
 
-const testDatabaseUrl = process.env['DATABASE_URL'];
+const databaseUrl = testDatabaseUrl();
 
-describe.runIf(testDatabaseUrl)('with the test database (DATABASE_URL)', () => {
-  const url = testDatabaseUrl ?? '';
+describe.runIf(databaseUrl)('with the test database (DATABASE_URL)', () => {
+  const url = databaseUrl ?? '';
   const run = (args: string[], stdin = `${PASSWORD}\n`) => runCli(args, stdin, url);
   let database: Database;
 
@@ -152,7 +161,13 @@ describe.runIf(testDatabaseUrl)('with the test database (DATABASE_URL)', () => {
 
   it('user:create stores a trimmed lower-case email and an Argon2id hash, never the password', async () => {
     const email = uniqueEmail();
-    const res = await run(['create', '--email', `  ${email.toUpperCase()} `, '--name', ' Ann Lee ']);
+    const res = await run([
+      'create',
+      '--email',
+      `  ${email.toUpperCase()} `,
+      '--name',
+      ' Ann Lee ',
+    ]);
     expect(res.stderr).toBe('');
     expect(res.code).toBe(0);
 

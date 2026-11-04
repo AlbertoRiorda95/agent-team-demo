@@ -1,12 +1,13 @@
 // /health and the migrations against a real Postgres (pg driver, Drizzle).
 // The "database down" case uses an unreachable DATABASE_URL and always runs.
-// The "database up" cases need a test database in DATABASE_URL (the CI orders
-// job provides orders_test); without it they are reported as skipped.
+// The "database up" cases need a test database in DATABASE_URL (the CI job
+// provides orders_test and fails without it); locally they are skipped.
 import { sql } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/adapters/http/app.js';
 import { openDatabase, type Database } from '../src/adapters/persistence/database.js';
 import { applyMigrations } from '../src/adapters/persistence/migrations.js';
+import { testDatabaseUrl } from './test-database.js';
 
 const opened: Database[] = [];
 afterEach(async () => {
@@ -31,10 +32,10 @@ describe('with the database down', () => {
   });
 });
 
-const testDatabaseUrl = process.env['DATABASE_URL'];
+const databaseUrl = testDatabaseUrl();
 
-describe.runIf(testDatabaseUrl)('with the test database (DATABASE_URL)', () => {
-  const url = testDatabaseUrl ?? '';
+describe.runIf(databaseUrl)('with the test database (DATABASE_URL)', () => {
+  const url = databaseUrl ?? '';
 
   it('GET /health answers 200 ok', async () => {
     const database = open(url);
