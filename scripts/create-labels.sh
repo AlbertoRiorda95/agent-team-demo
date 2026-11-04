@@ -17,6 +17,7 @@ gh label create "agent:split" --description "Ask Claude to propose a split into 
 # agent-team:if dispatch
 gh label create "hold" --description "dispatch.py never starts this task" --color fbca04 --force
 # agent-team:end
+gh label create "request" --description "A check or small change with no spec: agents follow docs/agents/requests.md" --color 1d76db --force
 gh label create "alignment-needed" --description "An agent changed something other roles rely on" --color d93f0b --force
 # The tool of the agent that owns a task (ci/agent-owner.sh adds it on the first run).
 # agent-team:if harness_claude

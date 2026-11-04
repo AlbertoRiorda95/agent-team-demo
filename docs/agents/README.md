@@ -9,6 +9,7 @@ reads a file in this folder only when its situation applies.
 <!-- agent-team:if split -->
 - `splitting.md`: you propose how to split an issue
 <!-- agent-team:end -->
+- `requests.md`: the issue has the `request` label (a check or a small change, no spec)
 - `merge-requests.md`: you open or update an MR
 - `ci.md`: a check fails, or you touch tests, UI, workflows or CI
 - `dependencies.md`: you add a dependency, or write something generic a library could do

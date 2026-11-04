@@ -20,7 +20,8 @@ the task touches, together.
 
 ## Workflow
 1. Read the issue and its spec in `docs/design/`. If the spec is missing or
-   not ready, stop and say what is missing.
+   not ready, stop and say what is missing. An issue with the `request`
+   label has no spec: follow `docs/agents/requests.md` instead.
 2. Work in the order of `docs/agents/workflow.md`, skipping the roles the
    task does not touch: the contract, then backend and frontend, then devops.
    Commit each part on its own.
