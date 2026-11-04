@@ -1,0 +1,1 @@
+- [CI sandbox limits](project_ci_sandbox_limits.md) — no Docker/Postgres in CI runs; DB tests only in CI; PR body via stdin

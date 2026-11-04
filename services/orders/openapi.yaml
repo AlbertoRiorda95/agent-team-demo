@@ -33,7 +33,7 @@ paths:
           description: Logged in; the session cookie is set
           headers:
             Set-Cookie:
-              description: The session cookie (HttpOnly, Secure, SameSite=Lax)
+              description: The session cookie (HttpOnly, SameSite=Lax, Path=/; Secure in production)
               schema: { type: string }
           content:
             application/json:
@@ -49,6 +49,7 @@ paths:
       responses:
         '204': { description: Logged out; the session cookie is cleared }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /auth/me:
     get:
@@ -152,6 +153,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Order' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
@@ -205,6 +207,13 @@ components:
   responses:
     Unauthorized:
       description: Not logged in, session expired, wrong credentials or wrong API key
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: |
+        A state-changing staff request that is not JSON, or whose Origin header
+        is missing or differs from the web app's origin (CSRF protection)
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

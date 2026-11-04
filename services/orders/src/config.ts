@@ -24,6 +24,71 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): C
   };
 }
 
+/** Configuration of the HTTP API only (the operator commands do not need it). */
+export interface HttpConfig {
+  /** NODE_ENV=production: Secure cookie, HSTS, PUBLIC_ORIGIN and SESSION_SECRET required. */
+  readonly production: boolean;
+  /**
+   * Origin of the web app (PUBLIC_ORIGIN, scheme://host[:port]); state-changing
+   * staff requests must carry it in their Origin header. Default
+   * http://localhost:5173 outside production.
+   */
+  readonly publicOrigin: string;
+  /**
+   * Key of the HMAC that stores session tokens (SESSION_SECRET, at least 32
+   * characters). Outside production, when it is not set, `undefined`: the app
+   * then uses a random key per process (sessions do not survive a restart).
+   */
+  readonly sessionSecret: string | undefined;
+}
+
+export const DEFAULT_PUBLIC_ORIGIN = 'http://localhost:5173';
+export const MIN_SESSION_SECRET_LENGTH = 32;
+
+/** Reads and validates the HTTP configuration. Messages never contain a value. */
+export function loadHttpConfig(env: Readonly<Record<string, string | undefined>>): HttpConfig {
+  const production = env['NODE_ENV'] === 'production';
+  return {
+    production,
+    publicOrigin: parsePublicOrigin(env['PUBLIC_ORIGIN'], production),
+    sessionSecret: parseSessionSecret(env['SESSION_SECRET'], production),
+  };
+}
+
+function parsePublicOrigin(raw: string | undefined, production: boolean): string {
+  if (raw === undefined || raw === '') {
+    if (production) throw new ConfigError('PUBLIC_ORIGIN is required in production');
+    return DEFAULT_PUBLIC_ORIGIN;
+  }
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new ConfigError('PUBLIC_ORIGIN must be a URL such as https://orders.example.com');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new ConfigError('PUBLIC_ORIGIN must use http:// or https://');
+  }
+  // an origin only: no path, query, fragment or credentials
+  if (raw.replace(/\/$/, '') !== url.origin) {
+    throw new ConfigError('PUBLIC_ORIGIN must be an origin only (scheme://host[:port])');
+  }
+  return url.origin;
+}
+
+function parseSessionSecret(raw: string | undefined, production: boolean): string | undefined {
+  if (raw === undefined || raw === '') {
+    if (production) throw new ConfigError('SESSION_SECRET is required in production');
+    return undefined;
+  }
+  if (raw.length < MIN_SESSION_SECRET_LENGTH) {
+    throw new ConfigError(
+      `SESSION_SECRET must have at least ${String(MIN_SESSION_SECRET_LENGTH)} characters`,
+    );
+  }
+  return raw;
+}
+
 function parsePort(raw: string | undefined): number {
   if (raw === undefined || raw === '') return DEFAULT_PORT;
   if (!/^\d+$/.test(raw)) throw new ConfigError('PORT must be an integer between 1 and 65535');

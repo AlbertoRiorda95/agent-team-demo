@@ -75,8 +75,27 @@ export function handleError(
   if (status >= 400 && status < 500) {
     return sendProblem(reply, { type: 'about:blank', title: error.message, status });
   }
-  request.log.error({ err: error }, 'Unhandled error');
+  request.log.error({ err: loggableError(error) }, 'Unhandled error');
   return sendProblem(reply, { type: 'about:blank', title: 'Internal Server Error', status: 500 });
+}
+
+/**
+ * What is logged of an unexpected error. Drizzle's query errors put the query
+ * parameters (an email, a token hash) in their message and stack, so only the
+ * innermost cause (the driver's error) is logged, with the outer error's type.
+ */
+export function loggableError(error: Error): Record<string, unknown> {
+  let inner: Error = error;
+  while (inner.cause instanceof Error) inner = inner.cause;
+  if (inner.name === 'DrizzleQueryError') return { type: error.name, message: 'Query failed' };
+  const code = (inner as { code?: unknown }).code;
+  return {
+    type: error.name,
+    ...(inner === error ? {} : { causeType: inner.name }),
+    ...(typeof code === 'string' ? { code } : {}),
+    message: inner.message,
+    stack: inner.stack,
+  };
 }
 
 /** `/items/0/quantity` + missing `sku` → `items[0].sku`; query and path fields get no prefix. */
