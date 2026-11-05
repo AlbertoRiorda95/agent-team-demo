@@ -40,10 +40,17 @@ export interface HttpConfig {
    * then uses a random key per process (sessions do not survive a restart).
    */
   readonly sessionSecret: string | undefined;
+  /**
+   * The order source's API key for POST /orders (ORDER_API_KEY, at least 32
+   * characters, required in production). Outside production, when it is not
+   * set, `undefined`: the route then answers 401 to every request.
+   */
+  readonly orderApiKey: string | undefined;
 }
 
 export const DEFAULT_PUBLIC_ORIGIN = 'http://localhost:5173';
 export const MIN_SESSION_SECRET_LENGTH = 32;
+export const MIN_ORDER_API_KEY_LENGTH = 32;
 
 /** Reads and validates the HTTP configuration. Messages never contain a value. */
 export function loadHttpConfig(env: Readonly<Record<string, string | undefined>>): HttpConfig {
@@ -52,7 +59,21 @@ export function loadHttpConfig(env: Readonly<Record<string, string | undefined>>
     production,
     publicOrigin: parsePublicOrigin(env['PUBLIC_ORIGIN'], production),
     sessionSecret: parseSessionSecret(env['SESSION_SECRET'], production),
+    orderApiKey: parseOrderApiKey(env['ORDER_API_KEY'], production),
   };
+}
+
+function parseOrderApiKey(raw: string | undefined, production: boolean): string | undefined {
+  if (raw === undefined || raw === '') {
+    if (production) throw new ConfigError('ORDER_API_KEY is required in production');
+    return undefined;
+  }
+  if (raw.length < MIN_ORDER_API_KEY_LENGTH) {
+    throw new ConfigError(
+      `ORDER_API_KEY must have at least ${String(MIN_ORDER_API_KEY_LENGTH)} characters`,
+    );
+  }
+  return raw;
 }
 
 function parsePublicOrigin(raw: string | undefined, production: boolean): string {

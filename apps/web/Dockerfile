@@ -13,7 +13,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/
 COPY services/orders/package.jso[n] services/orders/
-RUN npm ci --ignore-scripts -w apps/web --include-workspace-root
+# The lockfile is shared with services/orders, which takes @albertoriorda95/money
+# from GitHub Packages: the user npm config is mounted as a build secret (id
+# npmrc), only for this step, never in a layer (see services/orders/Dockerfile).
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc \
+    npm ci --ignore-scripts -w apps/web --include-workspace-root
 COPY tsconfig.base.json ./
 COPY apps/web/ apps/web/
 RUN npm run build -w apps/web

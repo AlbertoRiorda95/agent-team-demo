@@ -1,0 +1,1 @@
+- [CI runner limits](project_ci_runner_limits.md) — no workflow pushes, no docker, PR comments need approval, npmrc hook; workarounds

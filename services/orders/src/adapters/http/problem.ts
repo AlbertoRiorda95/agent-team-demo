@@ -72,6 +72,14 @@ export function handleError(
       detail: error.message,
     });
   }
+  if (status === 413) {
+    return sendProblem(reply, {
+      type: 'about:blank',
+      title: 'Payload Too Large',
+      status: 413,
+      detail: 'The request body is larger than this operation accepts.',
+    });
+  }
   if (status >= 400 && status < 500) {
     return sendProblem(reply, { type: 'about:blank', title: error.message, status });
   }

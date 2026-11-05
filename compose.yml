@@ -29,6 +29,7 @@ services:
     build:
       context: .
       dockerfile: services/orders/Dockerfile
+      secrets: [npmrc]
     environment:
       DATABASE_URL: postgres://orders:orders@postgres:5432/orders
       PORT: "3000"
@@ -54,6 +55,7 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      secrets: [npmrc]
     ports:
       - "5173:8080"
     depends_on:
@@ -72,3 +74,11 @@ services:
 
 volumes:
   pgdata:
+
+# Build secret for the images: the user npm config with the read token for
+# GitHub Packages, written by ./ci/registry.sh login (REGISTRY_TOKEN set).
+# Used only during npm ci, never stored in an image. Set NPM_USERCONFIG if
+# yours is not ~/.npmrc.
+secrets:
+  npmrc:
+    file: ${NPM_USERCONFIG:-${HOME}/.npmrc}

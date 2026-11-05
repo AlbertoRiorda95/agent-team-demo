@@ -11,7 +11,12 @@ COPY package.json package-lock.json ./
 COPY services/orders/package.json services/orders/
 COPY apps/web/package.jso[n] apps/web/
 # typescript is a root devDependency: -w alone would skip it (tsc: exit 127)
-RUN npm ci --ignore-scripts -w services/orders --include-workspace-root
+# @albertoriorda95/money comes from GitHub Packages: the user npm config written
+# by ./ci/registry.sh login is mounted as a build secret (id npmrc), only for
+# this step, so the token is never in a layer or in the build context:
+#   docker build --secret id=npmrc,src="$(npm config get userconfig)" ...
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc \
+    npm ci --ignore-scripts -w services/orders --include-workspace-root
 COPY tsconfig.base.json ./
 COPY services/orders/ services/orders/
 RUN npm run build -w services/orders
@@ -21,7 +26,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY services/orders/package.json services/orders/
 COPY apps/web/package.jso[n] apps/web/
-RUN npm ci --ignore-scripts --omit=dev -w services/orders
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc \
+    npm ci --ignore-scripts --omit=dev -w services/orders
 
 FROM ${NODE_IMAGE}
 ENV NODE_ENV=production PORT=3000

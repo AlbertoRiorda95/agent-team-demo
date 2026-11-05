@@ -1,1 +1,2 @@
 - [CI sandbox limits](project_ci_sandbox_limits.md) — no Docker/Postgres in CI runs; DB tests only in CI; PR body via stdin
+- [Docker registry auth](project_docker_registry_auth.md) — image build 401 on @albertoriorda95/money: BuildKit secret needed, devops fix
