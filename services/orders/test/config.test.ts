@@ -34,34 +34,50 @@ describe('loadConfig', () => {
 describe('loadHttpConfig', () => {
   const secret = 's'.repeat(32);
 
-  it('defaults PUBLIC_ORIGIN outside production and leaves SESSION_SECRET unset', () => {
+  const apiKey = 'k'.repeat(32);
+
+  it('defaults PUBLIC_ORIGIN outside production and leaves the secrets unset', () => {
     expect(loadHttpConfig({})).toEqual({
       production: false,
       publicOrigin: 'http://localhost:5173',
       sessionSecret: undefined,
+      orderApiKey: undefined,
     });
   });
 
-  it('reads PUBLIC_ORIGIN and SESSION_SECRET; a trailing slash is dropped', () => {
+  it('reads PUBLIC_ORIGIN, SESSION_SECRET and ORDER_API_KEY; a trailing slash is dropped', () => {
     const config = loadHttpConfig({
       NODE_ENV: 'production',
       PUBLIC_ORIGIN: 'https://orders.example.com/',
       SESSION_SECRET: secret,
+      ORDER_API_KEY: apiKey,
     });
     expect(config).toEqual({
       production: true,
       publicOrigin: 'https://orders.example.com',
       sessionSecret: secret,
+      orderApiKey: apiKey,
     });
   });
 
-  it('requires PUBLIC_ORIGIN and SESSION_SECRET in production', () => {
-    expect(() => loadHttpConfig({ NODE_ENV: 'production', SESSION_SECRET: secret })).toThrow(
-      'PUBLIC_ORIGIN is required in production',
-    );
+  it('requires PUBLIC_ORIGIN, SESSION_SECRET and ORDER_API_KEY in production', () => {
+    const origin = 'https://o.example.com';
     expect(() =>
-      loadHttpConfig({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://o.example.com' }),
+      loadHttpConfig({ NODE_ENV: 'production', SESSION_SECRET: secret, ORDER_API_KEY: apiKey }),
+    ).toThrow('PUBLIC_ORIGIN is required in production');
+    expect(() =>
+      loadHttpConfig({ NODE_ENV: 'production', PUBLIC_ORIGIN: origin, ORDER_API_KEY: apiKey }),
     ).toThrow('SESSION_SECRET is required in production');
+    expect(() =>
+      loadHttpConfig({ NODE_ENV: 'production', PUBLIC_ORIGIN: origin, SESSION_SECRET: secret }),
+    ).toThrow('ORDER_API_KEY is required in production');
+  });
+
+  it('rejects a short ORDER_API_KEY without echoing it', () => {
+    const error = captureError(() => loadHttpConfig({ ORDER_API_KEY: 'short-key-123' }));
+    expect(error).toBeInstanceOf(ConfigError);
+    expect(String(error)).toContain('ORDER_API_KEY must have at least 32 characters');
+    expect(String(error)).not.toContain('short-key-123');
   });
 
   it.each([

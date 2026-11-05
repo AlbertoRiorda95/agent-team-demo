@@ -11,6 +11,7 @@ import type { FastifyInstance, InjectOptions } from 'fastify';
 import { parse } from 'yaml';
 import { buildApp } from '../src/adapters/http/app.js';
 import { fakeAuth, OTHER_TOKEN, VALID_TOKEN, WEB, type FakeAuth } from './fake-auth.js';
+import { memoryOrderStore, TEST_API_KEY } from './order-fixtures.js';
 
 const CONTRACT = fileURLToPath(new URL('../openapi.yaml', import.meta.url));
 const METHODS = ['get', 'put', 'post', 'delete', 'patch', 'options', 'head'];
@@ -102,9 +103,15 @@ const validRequests: Record<string, { url: string; payload?: object }> = {
 };
 
 /** Operations with their handler; every other /api/v1 operation still answers 501. */
-const IMPLEMENTED = ['POST /api/v1/auth/login', 'POST /api/v1/auth/logout', 'GET /api/v1/auth/me'];
+const IMPLEMENTED = [
+  'POST /api/v1/auth/login',
+  'POST /api/v1/auth/logout',
+  'GET /api/v1/auth/me',
+  'POST /api/v1/orders',
+];
 
 const sessionHeaders = { cookie: `session=${VALID_TOKEN}`, origin: WEB.publicOrigin };
+const apiKeyHeaders = { authorization: `Bearer ${TEST_API_KEY}` };
 
 function requestFor(key: string, headers: Record<string, string> = {}): InjectOptions {
   const req = validRequests[key];
@@ -127,6 +134,7 @@ beforeAll(async () => {
     databaseHealth: { isReachable: () => Promise.resolve(true) },
     auth,
     web: WEB,
+    orders: { store: memoryOrderStore(), clock: () => new Date(), apiKey: TEST_API_KEY },
   });
   app.addHook('onRoute', (route) => {
     const methods = Array.isArray(route.method) ? route.method : [route.method];
@@ -218,9 +226,25 @@ describe('session guard from the contract security', () => {
     expect(auth.calls).toEqual([]);
   });
 
-  it('leaves POST /orders (API key, order-intake) to its own handler', async () => {
-    const res = await app.inject(requestFor('POST /api/v1/orders'));
-    expect(res.statusCode).toBe(501);
+  it('closes POST /orders with the API key, not the session', async () => {
+    const withSession = await app.inject(requestFor('POST /api/v1/orders', sessionHeaders));
+    expect(withSession.statusCode).toBe(401);
+    expect(auth.calls).toEqual([]);
+    const withKey = await app.inject(requestFor('POST /api/v1/orders', apiKeyHeaders));
+    expect(withKey.statusCode).toBe(201);
+  });
+});
+
+describe('API key guard from the contract security', () => {
+  it('POST /orders declares 401, 413 and 422', () => {
+    const op = operations.find((o) => o.key === 'POST /api/v1/orders');
+    expect(op?.responses).toEqual(expect.arrayContaining(['201', '200', '401', '413', '422']));
+  });
+
+  it('answers 401 before validating the input', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/v1/orders', payload: {} });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({ type: 'about:blank', title: 'Unauthorized', status: 401 });
   });
 });
 
@@ -287,7 +311,8 @@ describe('input validation from the contract', () => {
     const res = await app.inject({
       method: 'POST',
       url,
-      headers: sessionHeaders,
+      // the session for the staff routes, the key for POST /orders
+      headers: { ...sessionHeaders, ...apiKeyHeaders },
       payload: payload as object,
     });
     return { status: res.statusCode, type: res.headers['content-type'], body: res.json<unknown>() };
