@@ -17,6 +17,7 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=../../.env --import tsx src/adapters/persistence/migrate.ts",
+    "seed": "node --env-file-if-exists=../../.env --import tsx src/adapters/cli/seed.ts",
     "user:create": "node --env-file-if-exists=../../.env --import tsx src/adapters/cli/user.ts create",
     "user:deactivate": "node --env-file-if-exists=../../.env --import tsx src/adapters/cli/user.ts deactivate",
     "user:set-password": "node --env-file-if-exists=../../.env --import tsx src/adapters/cli/user.ts set-password"
