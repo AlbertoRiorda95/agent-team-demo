@@ -7,6 +7,8 @@ import {
   boolean,
   check,
   index,
+  integer,
+  pgSequence,
   pgTable,
   text,
   timestamp,
@@ -46,7 +48,10 @@ export const sessions = pgTable(
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },
-  (t) => [index('sessions_user_id_idx').on(t.userId), index('sessions_expires_at_idx').on(t.expiresAt)],
+  (t) => [
+    index('sessions_user_id_idx').on(t.userId),
+    index('sessions_expires_at_idx').on(t.expiresAt),
+  ],
 );
 
 /** Login attempts per email, for the lockout (unknown emails are recorded too). */
@@ -58,5 +63,89 @@ export const loginAttempts = pgTable(
     at: timestamp('at', { withTimezone: true }).notNull(),
     success: boolean('success').notNull(),
   },
-  (t) => [index('login_attempts_email_at_idx').on(t.email, t.at), index('login_attempts_at_idx').on(t.at)],
+  (t) => [
+    index('login_attempts_email_at_idx').on(t.email, t.at),
+    index('login_attempts_at_idx').on(t.at),
+  ],
+);
+
+/**
+ * Source of the order numbers (order-intake): `ORD-` + at least 6 digits.
+ * Gaps (rolled-back inserts) are accepted.
+ */
+export const orderNumberSeq = pgSequence('order_number_seq', { startWith: 1, increment: 1 });
+
+/** Orders (order-intake). Amounts are bigint minor units of `currency`. */
+export const orders = pgTable(
+  'orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    number: text('number').notNull(),
+    externalReference: text('external_reference').notNull(),
+    customerName: text('customer_name').notNull(),
+    customerEmail: text('customer_email').notNull(),
+    shippingName: text('shipping_name').notNull(),
+    shippingLine1: text('shipping_line1').notNull(),
+    shippingLine2: text('shipping_line2'),
+    shippingCity: text('shipping_city').notNull(),
+    shippingPostalCode: text('shipping_postal_code').notNull(),
+    shippingCountry: text('shipping_country').notNull(),
+    currency: text('currency').notNull(),
+    shippingCost: bigint('shipping_cost', { mode: 'number' }).notNull(),
+    total: bigint('total', { mode: 'number' }).notNull(),
+    status: text('status').notNull().default('new'),
+    version: integer('version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('orders_external_reference_key').on(t.externalReference),
+    uniqueIndex('orders_number_key').on(t.number),
+    index('orders_status_created_at_idx').on(t.status, t.createdAt.desc()),
+    check('orders_status_check', sql`${t.status} in ('new', 'paid', 'shipped', 'cancelled')`),
+    check('orders_currency_check', sql`${t.currency} in ('EUR', 'USD', 'GBP', 'JPY')`),
+    check('orders_amounts_check', sql`${t.shippingCost} >= 0 and ${t.total} >= 0`),
+    check('orders_version_check', sql`${t.version} >= 1`),
+  ],
+);
+
+/** The lines of an order, in the order they were sent (`position` from 0). */
+export const orderLines = pgTable(
+  'order_lines',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    sku: text('sku').notNull(),
+    name: text('name').notNull(),
+    quantity: integer('quantity').notNull(),
+    /** Minor units of the order's currency. */
+    unitPrice: bigint('unit_price', { mode: 'number' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('order_lines_order_id_position_key').on(t.orderId, t.position),
+    check('order_lines_quantity_check', sql`${t.quantity} >= 1`),
+    check('order_lines_unit_price_check', sql`${t.unitPrice} >= 0`),
+  ],
+);
+
+/** Status history of an order (written by order-detail; created empty here). */
+export const statusChanges = pgTable(
+  'status_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    fromStatus: text('from_status').notNull(),
+    toStatus: text('to_status').notNull(),
+    reason: text('reason'),
+    changedBy: uuid('changed_by')
+      .notNull()
+      .references(() => staffUsers.id),
+    at: timestamp('at', { withTimezone: true }).notNull(),
+  },
+  (t) => [index('status_changes_order_id_at_idx').on(t.orderId, t.at)],
 );
