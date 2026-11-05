@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { buildApp } from './adapters/http/app.js';
 import { openDatabase } from './adapters/persistence/database.js';
 import { createLoginAttemptStore } from './adapters/persistence/login-attempt-store.js';
+import { createOrderStore } from './adapters/persistence/order-store.js';
 import { createSessionStore } from './adapters/persistence/session-store.js';
 import { createStaffUserStore } from './adapters/persistence/staff-user-store.js';
 import { createArgon2PasswordHasher } from './adapters/security/argon2-password-hasher.js';
@@ -38,11 +39,19 @@ const app = buildApp({
   databaseHealth: database.health,
   auth,
   web: { production: httpConfig.production, publicOrigin: httpConfig.publicOrigin },
+  orders: {
+    store: createOrderStore(database.db),
+    clock: systemClock,
+    apiKey: httpConfig.orderApiKey,
+  },
   logger: { level: 'info' },
 });
 
 if (httpConfig.sessionSecret === undefined) {
   app.log.warn('SESSION_SECRET is not set: using a random key, sessions end on restart');
+}
+if (httpConfig.orderApiKey === undefined) {
+  app.log.warn('ORDER_API_KEY is not set: POST /api/v1/orders answers 401 to every request');
 }
 
 async function shutdown(signal: string): Promise<void> {

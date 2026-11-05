@@ -2,13 +2,17 @@ import Fastify, {
   type FastifyBaseLogger,
   type FastifyInstance,
   type FastifyServerOptions,
+  type onRequestAsyncHookHandler,
   type RouteHandlerMethod,
 } from 'fastify';
 import { checkHealth } from '../../application/check-health.js';
+import type { CreateOrderDeps } from '../../application/create-order.js';
 import type { DatabaseHealth } from '../../application/ports/database-health.js';
 import type { StaffAuth } from '../../application/staff-auth.js';
+import { apiKeyGuard, requiresApiKey } from './api-key.js';
 import { authHandlers } from './auth-routes.js';
-import { listOperations, loadContract } from './contract.js';
+import { listOperations, loadContract, type Operation } from './contract.js';
+import { CREATE_ORDER_BODY_LIMIT, orderHandlers } from './order-routes.js';
 import { handleError, notFound, notImplemented } from './problem.js';
 import { addSecurityHeaders } from './security-headers.js';
 import { requiresSession, sessionGuard } from './session.js';
@@ -29,12 +33,23 @@ export interface AppDependencies {
   readonly logger?: FastifyServerOptions['logger'] | FastifyBaseLogger;
   /** Path of the OpenAPI contract; services/orders/openapi.yaml by default. */
   readonly contractPath?: string;
+  /**
+   * Order intake (POST /orders). Without it, or without `apiKey`, the route
+   * answers 401 to every request: it never fails open.
+   */
+  readonly orders?: OrderIntakeOptions;
+}
+
+export interface OrderIntakeOptions extends CreateOrderDeps {
+  /** ORDER_API_KEY; `undefined` closes the route. */
+  readonly apiKey: string | undefined;
 }
 
 /**
  * Builds the HTTP app: one route per operation of the contract, validated with
  * the contract's request schemas, closed by the session guard when the
- * operation's `security` requires a session. Operations without a handler yet
+ * operation's `security` requires a session, or by the API key guard when it
+ * requires the `apiKey` scheme. Operations without a handler yet
  * answer 501 (after the guard).
  */
 export function buildApp(deps: AppDependencies): FastifyInstance {
@@ -59,27 +74,37 @@ export function buildApp(deps: AppDependencies): FastifyInstance {
       return reply.status(status === 'ok' ? 200 : 503).send({ status });
     },
     ...authHandlers({ auth: deps.auth, cookie }),
+    ...(deps.orders ? orderHandlers(deps.orders) : {}),
+  };
+  const bodyLimits: Record<string, number> = {
+    'POST /api/v1/orders': CREATE_ORDER_BODY_LIMIT,
   };
 
   const notYet: RouteHandlerMethod = (_request, reply) => notImplemented(reply);
+  const guardOf = (operation: Operation): onRequestAsyncHookHandler | undefined => {
+    if (requiresSession(operation)) {
+      return sessionGuard(operation, {
+        auth: deps.auth,
+        publicOrigin: deps.web.publicOrigin,
+        cookie,
+      });
+    }
+    if (requiresApiKey(operation)) return apiKeyGuard(deps.orders?.apiKey);
+    return undefined;
+  };
 
   const operations = listOperations(loadContract(deps.contractPath));
   // Registered as a plugin (on ready), so onRoute hooks added after buildApp see every route.
   void app.register((instance, _options, done) => {
     for (const operation of operations) {
+      const guard = guardOf(operation);
+      const bodyLimit = bodyLimits[operation.key];
       instance.route({
         method: operation.method,
         url: operation.url,
         schema: operation.schema,
-        ...(requiresSession(operation)
-          ? {
-              onRequest: sessionGuard(operation, {
-                auth: deps.auth,
-                publicOrigin: deps.web.publicOrigin,
-                cookie,
-              }),
-            }
-          : {}),
+        ...(guard ? { onRequest: guard } : {}),
+        ...(bodyLimit === undefined ? {} : { bodyLimit }),
         handler: handlers[operation.key] ?? notYet,
       });
     }
