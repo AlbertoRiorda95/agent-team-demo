@@ -94,6 +94,7 @@ jobs:
       pull-requests: write
       id-token: write
       actions: read
+      packages: read
     env:
       # The model of each role, for the task and for every /agent request on it.
       MODEL: ${{ contains(fromJSON('["agent:designer","agent:frontend","agent:devops","agent:writer"]'), needs.route.outputs.label) && 'claude-sonnet-5-5' || 'claude-opus-5-5' }}
@@ -105,7 +106,14 @@ jobs:
       CLAUDE_CODE_AUTO_COMPACT_WINDOW: "200000"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      # The session runs as the role's agent (--agent): its tools, and the role's hooks
+      # the team's registry (ci/registry.env): read token from the secret, else the job token;
+      # it goes to the user-level npm config (never a file of the repository), so the agent's
+      # npm ci and npm view can fetch @albertoriorda95/money
+      - run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      # The session as the role's agent (--agent): its tools, and the role's hooks
       # (scripts/hooks/role-hooks.sh), which apply only to a named agent.
       - if: needs.route.outputs.mode == 'task'
         uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6  # v1.0.264
@@ -204,10 +212,18 @@ jobs:
       issues: write
       pull-requests: write
       id-token: write
+      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ needs.route.outputs.branch }}
+      # the team's registry (ci/registry.env): read token from the secret, else the job token;
+      # it goes to the user-level npm config (never a file of the repository), so the agent's
+      # npm ci and npm view can fetch @albertoriorda95/money
+      - run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Prompt
         id: prompt
         env:
