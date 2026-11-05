@@ -225,6 +225,12 @@ jobs:
           path: reports/
       - run: ./ci/install-scanners.sh
       - run: ./ci/scan.sh vulnerabilities
+      # the team's registry (ci/registry.env): read token from the secret, else the job token;
+      # the image builds get it as a BuildKit secret, never in a layer
+      - run: ./ci/registry.sh login
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
       # the container images are scanned too, once the services have a Dockerfile
       # (build context: the repository root)
       - name: Build and scan the images
@@ -235,7 +241,7 @@ jobs:
           for d in services/orders apps/web; do
             [ -f "$d/Dockerfile" ] || continue
             name=$(basename "$d")
-            docker build -t "$name:ci" -f "$d/Dockerfile" .
+            docker build --secret id=npmrc,src="$HOME/.npmrc" -t "$name:ci" -f "$d/Dockerfile" .
             trivy image --format json --output "reports/trivy-image-$name.json" "$name:ci"
             trivy image --severity "$TRIVY_FAIL_SEVERITY" --exit-code 1 "$name:ci" || status=1
           done
