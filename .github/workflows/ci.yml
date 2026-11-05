@@ -105,12 +105,15 @@ jobs:
           REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
       # random key per run for the orders tests; never committed
-      - name: Session key for the orders tests
+      - name: Session and order API keys for the orders tests
         if: matrix.name == 'orders'
         run: |
           key=$(openssl rand -hex 32)
           echo "::add-mask::$key"
           echo "SESSION_SECRET=$key" >> "$GITHUB_ENV"
+          order_key=$(openssl rand -hex 32)
+          echo "::add-mask::$order_key"
+          echo "ORDER_API_KEY=$order_key" >> "$GITHUB_ENV"
       - run: ${{ matrix.install }}
       - run: ${{ matrix.run }} lint --if-present
       - run: ${{ matrix.run }} typecheck --if-present
