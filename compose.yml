@@ -36,6 +36,8 @@ services:
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:5173}
       # no default on purpose: set it in .env (see .env.example), openssl rand -hex 32
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env (openssl rand -hex 32)}
+      # key of the order source for POST /api/v1/orders (>= 32 chars; required with NODE_ENV=production)
+      ORDER_API_KEY: ${ORDER_API_KEY:?set ORDER_API_KEY in .env (openssl rand -hex 32)}
     ports:
       - "3000:3000"
     depends_on:
