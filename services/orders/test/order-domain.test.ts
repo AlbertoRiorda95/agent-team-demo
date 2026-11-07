@@ -192,6 +192,7 @@ describe('createOrder', () => {
       insert: () => Promise.reject(new ExternalReferenceTakenError()),
       findByNumber: (number) => memory.findByNumber(number),
       list: (query) => memory.list(query),
+      changeStatus: (change) => memory.changeStatus(change),
     };
     const result = await createOrder(
       { store: racing, clock: () => NOW },

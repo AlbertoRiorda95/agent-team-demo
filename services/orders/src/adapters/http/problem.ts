@@ -14,6 +14,9 @@ export interface Problem {
   status: number;
   detail?: string;
   errors?: FieldError[];
+  /** ConflictProblem (409 of a status change): the order as it is now. */
+  currentStatus?: string;
+  currentVersion?: number;
 }
 
 export function sendProblem(reply: FastifyReply, problem: Problem): FastifyReply {

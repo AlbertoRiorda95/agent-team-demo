@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { Writable } from 'node:stream';
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
 import { buildApp, type OrderIntakeOptions } from '../src/adapters/http/app.js';
-import { fakeAuth, WEB } from './fake-auth.js';
+import { fakeAuth, STUB_USER, WEB } from './fake-auth.js';
 import {
   ExternalReferenceTakenError,
   type OrderRecord,
@@ -114,6 +114,33 @@ export function memoryOrderStore(): MemoryOrderStore {
       };
       orders.push(order);
       return Promise.resolve(order);
+    },
+    changeStatus: (change) => {
+      const index = orders.findIndex((o) => o.id === change.orderId);
+      const order = orders[index];
+      // the same conditional update as the Drizzle store
+      if (!order || order.status !== change.from || order.version !== change.expectedVersion) {
+        return Promise.resolve(undefined);
+      }
+      const updated: OrderRecord = {
+        ...order,
+        status: change.to,
+        version: order.version + 1,
+        updatedAt: change.at,
+        history: [
+          ...order.history,
+          {
+            from: change.from,
+            to: change.to,
+            ...(change.reason === undefined ? {} : { reason: change.reason }),
+            // the only session user of the fake auth
+            changedBy: { id: change.changedBy, name: STUB_USER.name },
+            at: change.at,
+          },
+        ],
+      };
+      orders[index] = updated;
+      return Promise.resolve(updated);
     },
     list: ({ status, search, offset, limit }) => {
       const needle = search?.toLowerCase();
