@@ -1,6 +1,7 @@
-// Handlers of GET /orders (orders-list, after the session guard) and POST
-// /orders (order-intake, after the API key guard). Both run after the
-// contract's schema validation; the use cases hold the rules.
+// Handlers of GET /orders (orders-list) and GET /orders/{number}
+// (order-detail), after the session guard, and POST /orders (order-intake,
+// after the API key guard). All run after the contract's schema validation;
+// the use cases hold the rules.
 import { toJSON } from '@albertoriorda95/money';
 import type { RouteHandlerMethod } from 'fastify';
 import {
@@ -8,6 +9,7 @@ import {
   type CreateOrderDeps,
   type CreateOrderResult,
 } from '../../application/create-order.js';
+import { getOrder } from '../../application/get-order.js';
 import { listOrders, type ListOrdersInput } from '../../application/list-orders.js';
 import type { OrderRecord, OrderSummaryRecord } from '../../application/ports/order-store.js';
 import { InvalidOrderError, type NewOrderInput } from '../../domain/order.js';
@@ -33,6 +35,20 @@ export function orderHandlers(deps: CreateOrderDeps): Record<string, RouteHandle
         pageSize: page.pageSize,
         total: page.total,
       });
+    },
+    'GET /api/v1/orders/{number}': async (request, reply) => {
+      // matched against the contract's OrderNumber pattern (a malformed one is a 404)
+      const { number } = request.params as { number: string };
+      const order = await getOrder(deps, number);
+      if (!order) {
+        return sendProblem(reply, {
+          type: 'about:blank',
+          title: 'Not Found',
+          status: 404,
+          detail: 'No such order.',
+        });
+      }
+      return reply.send(orderResponse(order));
     },
     'POST /api/v1/orders': async (request, reply) => {
       let result: CreateOrderResult;

@@ -2,7 +2,8 @@
 // openapi.yaml (drift either way fails), the session guard follows each
 // operation's `security` (401 without a session, 403 for a state-changing
 // request that is not same-origin JSON), operations without a handler answer
-// 501 problem+json, and input is validated with the contract's schemas (422).
+// 501 problem+json, and input is validated with the contract's schemas (422;
+// 404 for a malformed path parameter).
 // The use cases are stubbed (fake-auth.ts): auth.test.ts runs the real ones.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -109,6 +110,7 @@ const IMPLEMENTED = [
   'GET /api/v1/auth/me',
   'GET /api/v1/orders',
   'POST /api/v1/orders',
+  'GET /api/v1/orders/{number}',
 ];
 
 const sessionHeaders = { cookie: `session=${VALID_TOKEN}`, origin: WEB.publicOrigin };
@@ -366,14 +368,22 @@ describe('input validation from the contract', () => {
     expect(res.body).toMatchObject({ errors: [{ field: 'email' }] });
   });
 
-  it('validates path parameters', async () => {
-    const res = await app.inject({
+  it('validates path parameters: a malformed one is a 404, even on a POST', async () => {
+    const get = await app.inject({
       method: 'GET',
       url: '/api/v1/orders/123',
       headers: sessionHeaders,
     });
-    expect(res.statusCode).toBe(422);
-    expect(res.json()).toMatchObject({ errors: [{ field: 'number' }] });
+    expect(get.statusCode).toBe(404);
+    expect(get.headers['content-type']).toMatch(/^application\/problem\+json/);
+    expect(get.json()).toEqual({ type: 'about:blank', title: 'Not Found', status: 404 });
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/orders/123/status',
+      headers: sessionHeaders,
+      payload: { to: 'paid', version: 1 },
+    });
+    expect(post.statusCode).toBe(404);
   });
 
   it('validates query parameters', async () => {
