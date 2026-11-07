@@ -25,8 +25,34 @@ const session = (page: Page, signedIn: boolean) =>
       : r.fulfill({ status: 401, contentType: 'application/problem+json', json: problem }),
   );
 
-const healthOk = (page: Page) =>
-  page.route('**/health', (r) => r.fulfill({ status: 200, json: { status: 'ok' } }));
+const currencies = ['EUR', 'USD', 'GBP', 'JPY'] as const;
+const statuses = ['new', 'paid', 'shipped', 'cancelled'] as const;
+
+/** A page of the mocked list: `count` orders from number `first`, `total` in all. */
+const pageOf = (page: number, count: number, total: number) => ({
+  page,
+  pageSize: 25,
+  total,
+  items: Array.from({ length: count }, (_, i) => {
+    const n = (page - 1) * 25 + i + 1;
+    const currency = currencies[n % 4] ?? 'EUR';
+    return {
+      number: `ORD-${String(n).padStart(6, '0')}`,
+      status: statuses[n % 4] ?? 'new',
+      customerName: `Customer with a rather long name ${String(n)}`,
+      total: { amount: currency === 'JPY' ? '12500' : '1234.50', currency },
+      createdAt: '2026-11-01T10:30:00Z',
+    };
+  }),
+});
+
+/** Mocks `GET /orders` with 137 orders, 25 per page; a page beyond the last is empty. */
+const ordersApi = (page: Page) =>
+  page.route('**/api/v1/orders*', (r) => {
+    const p = Number(new URL(r.request().url()).searchParams.get('page') ?? '1');
+    const count = Math.max(0, Math.min(25, 137 - (p - 1) * 25));
+    return r.fulfill({ json: pageOf(p, count, 137) });
+  });
 
 /** Mocks `POST /auth/login` with one answer. */
 const loginAnswer = async (page: Page, status: number, headers: Record<string, string> = {}) => {
@@ -49,33 +75,78 @@ const submitLogin = async (page: Page) => {
 
 const screens: Screen[] = [
   {
-    name: 'home-ok',
+    name: 'list-page-1',
     path: '/',
-    expect: 'Orders — API ok',
+    expect: '1–25 of 137 orders',
     mock: async (page) => {
       await session(page, true);
-      await healthOk(page);
+      await ordersApi(page);
     },
   },
   {
-    name: 'home-error',
-    path: '/',
-    expect: 'The API is unreachable.',
+    name: 'list-last-page',
+    path: '/?page=6',
+    expect: '126–137 of 137 orders',
     mock: async (page) => {
       await session(page, true);
-      await page.route('**/health', (r) =>
-        r.fulfill({ status: 503, json: { status: 'unavailable' } }),
+      await ordersApi(page);
+    },
+  },
+  {
+    name: 'list-single-page',
+    path: '/?status=cancelled',
+    expect: '1–3 of 3 orders',
+    mock: async (page) => {
+      await session(page, true);
+      await page.route('**/api/v1/orders*', (r) => r.fulfill({ json: pageOf(1, 3, 3) }));
+    },
+  },
+  {
+    name: 'list-out-of-range',
+    path: '/?page=99',
+    expect: '126–137 of 137 orders',
+    mock: async (page) => {
+      await session(page, true);
+      await ordersApi(page);
+    },
+  },
+  {
+    name: 'list-empty',
+    path: '/',
+    expect: 'No orders yet',
+    mock: async (page) => {
+      await session(page, true);
+      await page.route('**/api/v1/orders*', (r) => r.fulfill({ json: pageOf(1, 0, 0) }));
+    },
+  },
+  {
+    name: 'list-no-match',
+    path: '/?q=zzz',
+    expect: 'No orders match',
+    mock: async (page) => {
+      await session(page, true);
+      await page.route('**/api/v1/orders*', (r) => r.fulfill({ json: pageOf(1, 0, 0) }));
+    },
+  },
+  {
+    name: 'list-error',
+    path: '/',
+    expect: "Can't load the orders.",
+    mock: async (page) => {
+      await session(page, true);
+      await page.route('**/api/v1/orders*', (r) =>
+        r.fulfill({ status: 503, contentType: 'application/problem+json', json: problem }),
       );
     },
   },
   // never answers: the loading state stays visible
   {
-    name: 'home-loading',
+    name: 'list-loading',
     path: '/',
-    expect: 'Loading…',
+    expect: 'Loading orders…',
     mock: async (page) => {
       await session(page, true);
-      await page.route('**/health', () => new Promise(() => undefined));
+      await page.route('**/api/v1/orders*', () => new Promise(() => undefined));
     },
   },
   // the session check never answers: the shell is checking
@@ -222,7 +293,7 @@ test('flow: log in, log out, and Back does not show the shell again', async ({ p
     signedIn = false;
     return r.fulfill({ status: 204 });
   });
-  await healthOk(page);
+  await ordersApi(page);
 
   await page.goto('/');
   await expect(page).toHaveURL(/\/login$/);
@@ -242,7 +313,7 @@ test('flow: an expired session returns to login, then to the page, external next
 }) => {
   await session(page, false);
   await page.route('**/api/v1/auth/login', (r) => r.fulfill({ status: 200, json: staff }));
-  await healthOk(page);
+  await ordersApi(page);
 
   // an unknown path under the shell is not a route; use /login?next= directly
   await page.goto('/login?next=%2F%3Ffrom%3Dexpired');
@@ -256,7 +327,7 @@ test('flow: an expired session returns to login, then to the page, external next
 
 test('flow: a signed-in user opening /login?next=//evil.test lands on /', async ({ page }) => {
   await session(page, true);
-  await healthOk(page);
+  await ordersApi(page);
   await page.goto('/login?next=' + encodeURIComponent('//evil.test'));
   await expect(page.getByText('Ana')).toBeVisible();
   await expect(page).toHaveURL(/localhost:\d+\/$/);
@@ -264,10 +335,62 @@ test('flow: a signed-in user opening /login?next=//evil.test lands on /', async 
 
 test('flow: a 401 on a staff request while signed in returns to login', async ({ page }) => {
   await session(page, true);
-  await healthOk(page);
+  await ordersApi(page);
   await page.route('**/api/v1/auth/logout', (r) => r.fulfill({ status: 401, json: {} }));
   await page.goto('/');
   await page.getByRole('button', { name: 'Log out' }).click();
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
+});
+
+test('flow: status, search and page live in the URL; Back restores; invalid values ignored', async ({
+  page,
+}) => {
+  await session(page, true);
+  await ordersApi(page);
+
+  await page.goto('/?status=bogus&page=-2');
+  await expect(page.getByText('1–25 of 137 orders')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Next' }).click();
+  await expect(page).toHaveURL(/\?page=2$/);
+  await expect(page.getByText('26–50 of 137 orders')).toBeVisible();
+
+  await page.getByLabel('Status').selectOption('paid');
+  await expect(page).toHaveURL(/\?status=paid$/);
+
+  await page.getByLabel('Search orders').fill('ana');
+  await expect(page).toHaveURL(/\?status=paid&q=ana$/);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\?page=2$/);
+  await expect(page.getByLabel('Status')).toHaveValue('');
+  await expect(page.getByLabel('Search orders')).toHaveValue('');
+});
+
+test('flow: a page beyond the last replaces the URL; Back does not return to it', async ({
+  page,
+}) => {
+  await session(page, true);
+  await ordersApi(page);
+  await page.goto('/?page=2');
+  await page.goto('/?page=99');
+  await expect(page).toHaveURL(/\?page=6$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\?page=2$/);
+});
+
+test('flow: Retry after a failure loads the list', async ({ page }) => {
+  await session(page, true);
+  let fail = true;
+  await page.route('**/api/v1/orders*', (r) =>
+    fail
+      ? r.fulfill({ status: 503, contentType: 'application/problem+json', json: problem })
+      : r.fulfill({ json: pageOf(1, 25, 137) }),
+  );
+  await page.goto('/');
+  await expect(page.getByText("Can't load the orders.")).toBeVisible();
+  fail = false;
+  await page.getByRole('button', { name: 'Retry' }).click();
+  await expect(page.getByText('1–25 of 137 orders')).toBeVisible();
 });

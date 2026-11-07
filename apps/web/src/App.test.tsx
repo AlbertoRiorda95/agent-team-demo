@@ -53,21 +53,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test('signed in: the shell shows the name and the health panel', async () => {
+const emptyPage = { items: [], page: 1, pageSize: 25, total: 0 };
+
+test('signed in: the shell shows the name and the orders list', async () => {
   stubApi({
     'GET /api/v1/auth/me': json(200, user),
-    'GET /health': json(200, { status: 'ok' }),
+    'GET /api/v1/orders': json(200, emptyPage),
   });
   renderAt('/');
   expect(await screen.findByText('Ana')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy();
-  expect(await screen.findByText('Orders — API ok')).toBeTruthy();
-});
-
-test('shows a health error with Retry inside the shell', async () => {
-  stubApi({ 'GET /api/v1/auth/me': json(200, user) });
-  renderAt('/');
-  expect(await screen.findByText('The API is unreachable.')).toBeTruthy();
+  expect(await screen.findByText('No orders yet')).toBeTruthy();
 });
 
 test('no session: redirects to /login, keeping the page in next', async () => {
@@ -89,7 +85,7 @@ test('login success goes to next', async () => {
   stubApi({
     'GET /api/v1/auth/me': json(401, {}),
     'POST /api/v1/auth/login': json(200, user),
-    'GET /health': json(200, { status: 'ok' }),
+    'GET /api/v1/orders': json(200, emptyPage),
   });
   renderAt('/login?next=%2F');
   await fillAndSubmit('ana@shop.test', 'correct horse battery');
@@ -151,7 +147,7 @@ test('login: empty and invalid fields are checked before any request', async () 
 test('a signed-in user opening /login is sent to next, an external next is ignored', async () => {
   stubApi({
     'GET /api/v1/auth/me': json(200, user),
-    'GET /health': json(200, { status: 'ok' }),
+    'GET /api/v1/orders': json(200, emptyPage),
   });
   renderAt('/login?next=https%3A%2F%2Fevil.test');
   expect(await screen.findByText('Ana')).toBeTruthy();
@@ -161,7 +157,7 @@ test('a signed-in user opening /login is sent to next, an external next is ignor
 test('a signed-in user opening /login?next=//evil.test lands on /', async () => {
   stubApi({
     'GET /api/v1/auth/me': json(200, user),
-    'GET /health': json(200, { status: 'ok' }),
+    'GET /api/v1/orders': json(200, emptyPage),
   });
   renderAt('/login?next=' + encodeURIComponent('//evil.test'));
   expect(await screen.findByText('Ana')).toBeTruthy();
@@ -202,7 +198,7 @@ test('an expired session on a staff request lands on /login?next=<page>', async 
 test('Log out calls the API and goes to /login', async () => {
   stubApi({
     'GET /api/v1/auth/me': json(200, user),
-    'GET /health': json(200, { status: 'ok' }),
+    'GET /api/v1/orders': json(200, emptyPage),
     'POST /api/v1/auth/logout': none(204),
   });
   renderAt('/');

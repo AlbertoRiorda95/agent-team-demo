@@ -162,8 +162,11 @@ export interface paths {
         /**
          * Create an order (order source, API key)
          * @description Idempotent on externalReference: the same reference again returns the
-         *     existing order with 200 and creates nothing. The total is computed by
-         *     the service.
+         *     existing order with 200 and creates nothing, whatever else the body
+         *     says. The total is computed by the service (lines + shipping). Every
+         *     amount must have at most the currency's minor digits. The request body
+         *     is limited to 256 KB (262144 bytes): a larger one answers 413. A staff
+         *     session cookie is not accepted here.
          */
         post: {
             parameters: {
@@ -197,6 +200,7 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["Unauthorized"];
+                413: components["responses"]["PayloadTooLarge"];
                 422: components["responses"]["ValidationFailed"];
             };
         };
@@ -391,7 +395,8 @@ export interface components {
         CurrencyCode: "EUR" | "USD" | "GBP" | "JPY";
         Amount: {
             /**
-             * @description Decimal string with at most the currency's minor digits (JPY 0, others 2)
+             * @description Decimal string. In responses always exactly the currency's minor
+             *     digits ("12.50", JPY "1250"); in requests at most that many.
              * @example 12.50
              * @example 1250
              */
@@ -534,6 +539,15 @@ export interface components {
         };
         /** @description The request is not valid */
         ValidationFailed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description The request body is larger than the operation's limit */
+        PayloadTooLarge: {
             headers: {
                 [name: string]: unknown;
             };
