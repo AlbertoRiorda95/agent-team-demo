@@ -57,6 +57,12 @@ function stub(answer: (url: string, init?: RequestInit) => Response | Promise<Re
   return fn;
 }
 
+/** The JSON body sent by a recorded fetch call. */
+function bodyOf(call: readonly [string, (RequestInit | undefined)?] | undefined): unknown {
+  const body = call?.[1]?.body;
+  return typeof body === 'string' ? JSON.parse(body) : undefined;
+}
+
 function Where() {
   const l = useLocation();
   return <output data-testid="where">{l.pathname + l.search}</output>;
@@ -115,7 +121,7 @@ test('Mark paid sends the version, updates the page and announces a toast', asyn
   expect(await screen.findByRole('button', { name: 'Mark shipped' })).toBeTruthy();
   expect(screen.getByRole('status').textContent).toContain('Order ORD-000123 marked as paid');
   const post = fn.mock.calls.find(([u]) => u.endsWith('/status'));
-  expect(JSON.parse(String(post?.[1]?.body))).toEqual({ to: 'paid', version: 1 });
+  expect(bodyOf(post)).toEqual({ to: 'paid', version: 1 });
 });
 
 test('a double click sends one request', async () => {
@@ -149,7 +155,7 @@ test('cancel: the dialog sends the reason; 422 shows on the field', async () => 
     expect(screen.getByRole('status').textContent).toContain('marked as cancelled');
   });
   const posts = fn.mock.calls.filter(([u]) => u.endsWith('/status'));
-  expect(JSON.parse(String(posts[1]?.[1]?.body))).toEqual({
+  expect(bodyOf(posts[1])).toEqual({
     to: 'cancelled',
     version: 1,
     reason: 'too late',
@@ -184,9 +190,7 @@ test('a 409 shows the reload alert, disables the actions and Reload refetches', 
   renderAt('/orders/ORD-000123');
   fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }));
   expect(await screen.findByText('This order changed: reload.')).toBeTruthy();
-  expect((screen.getByRole('button', { name: 'Mark paid' }) as HTMLButtonElement).disabled).toBe(
-    true,
-  );
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Mark paid' }).disabled).toBe(true);
   reloaded = true;
   fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
   expect(await screen.findByRole('button', { name: 'Mark shipped' })).toBeTruthy();

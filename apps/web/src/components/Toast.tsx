@@ -10,9 +10,7 @@ export function Toast({ message, onDone }: { message: string | null; onDone: () 
     const id = setTimeout(() => {
       onDone();
     }, TOAST_MS);
-    return () => {
-      clearTimeout(id);
-    };
+    return () => { clearTimeout(id); };
   }, [message, onDone]);
 
   return (

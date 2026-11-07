@@ -48,18 +48,9 @@ export function LoginPage() {
     event?.preventDefault();
     if (busy) return;
     const trimmed = email.trim();
-    if (trimmed === '') {
-      invalid('Enter your email.');
-      return;
-    }
-    if (!EMAIL_SHAPE.test(trimmed)) {
-      invalid('Enter a valid email.');
-      return;
-    }
-    if (password === '') {
-      invalid('Enter your password.');
-      return;
-    }
+    if (trimmed === '') { invalid('Enter your email.'); return; }
+    if (!EMAIL_SHAPE.test(trimmed)) { invalid('Enter a valid email.'); return; }
+    if (password === '') { invalid('Enter your password.'); return; }
     setBusy(true);
     setFailure(null);
     try {
