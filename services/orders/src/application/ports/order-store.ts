@@ -36,6 +36,30 @@ export class ExternalReferenceTakenError extends Error {
   }
 }
 
+/** One row of the orders list (orders-list). */
+export interface OrderSummaryRecord {
+  readonly number: string;
+  readonly status: OrderStatus;
+  readonly customerName: string;
+  readonly total: Money;
+  readonly createdAt: Date;
+}
+
+/** What the orders list asks the store for; `search` is already trimmed and non-empty. */
+export interface OrderListQuery {
+  readonly status?: OrderStatus;
+  /** Case-insensitive contained text of number, customer name or email; taken literally. */
+  readonly search?: string;
+  readonly offset: number;
+  readonly limit: number;
+}
+
+export interface OrderListResult {
+  readonly items: readonly OrderSummaryRecord[];
+  /** Number of orders matching status and search, whatever the page. */
+  readonly total: number;
+}
+
 /** Port: persistence of orders. */
 export interface OrderStore {
   findByExternalReference(externalReference: string): Promise<OrderRecord | undefined>;
@@ -48,4 +72,9 @@ export interface OrderStore {
     draft: OrderDraft,
     options: { readonly now: Date; readonly numberFor: (sequenceValue: number) => string },
   ): Promise<OrderRecord>;
+  /**
+   * One page of orders, `createdAt` descending then `number` descending, and
+   * the total of the filter. An offset at or beyond the total gives no items.
+   */
+  list(query: OrderListQuery): Promise<OrderListResult>;
 }

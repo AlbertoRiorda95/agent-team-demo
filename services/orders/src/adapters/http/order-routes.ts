@@ -1,5 +1,6 @@
-// Handler of POST /orders (order-intake). It runs after the API key guard and
-// the contract's schema validation; the use case checks the money rules.
+// Handlers of GET /orders (orders-list, after the session guard) and POST
+// /orders (order-intake, after the API key guard). Both run after the
+// contract's schema validation; the use cases hold the rules.
 import { toJSON } from '@albertoriorda95/money';
 import type { RouteHandlerMethod } from 'fastify';
 import {
@@ -7,7 +8,8 @@ import {
   type CreateOrderDeps,
   type CreateOrderResult,
 } from '../../application/create-order.js';
-import type { OrderRecord } from '../../application/ports/order-store.js';
+import { listOrders, type ListOrdersInput } from '../../application/list-orders.js';
+import type { OrderRecord, OrderSummaryRecord } from '../../application/ports/order-store.js';
 import { InvalidOrderError, type NewOrderInput } from '../../domain/order.js';
 import { sendProblem } from './problem.js';
 
@@ -16,6 +18,22 @@ export const CREATE_ORDER_BODY_LIMIT = 256 * 1024;
 
 export function orderHandlers(deps: CreateOrderDeps): Record<string, RouteHandlerMethod> {
   return {
+    'GET /api/v1/orders': async (request, reply) => {
+      // validated and defaulted from the contract (status enum, page ≥ 1, pageSize 1..100)
+      const query = request.query as ListOrdersInput;
+      const page = await listOrders(deps, {
+        status: query.status,
+        q: query.q,
+        page: query.page,
+        pageSize: query.pageSize,
+      });
+      return reply.send({
+        items: page.items.map(orderSummaryResponse),
+        page: page.page,
+        pageSize: page.pageSize,
+        total: page.total,
+      });
+    },
     'POST /api/v1/orders': async (request, reply) => {
       let result: CreateOrderResult;
       try {
@@ -31,6 +49,17 @@ export function orderHandlers(deps: CreateOrderDeps): Record<string, RouteHandle
       }
       return reply.status(result.kind === 'created' ? 201 : 200).send(orderResponse(result.order));
     },
+  };
+}
+
+/** The contract's OrderSummary. */
+export function orderSummaryResponse(order: OrderSummaryRecord): Record<string, unknown> {
+  return {
+    number: order.number,
+    status: order.status,
+    customerName: order.customerName,
+    total: toJSON(order.total),
+    createdAt: order.createdAt.toISOString(),
   };
 }
 
