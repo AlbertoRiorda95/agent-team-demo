@@ -287,11 +287,14 @@ jobs:
       # its later v* tags have no action (dependabot.yml ignores them).
       - uses: anomalyco/opencode/github@17b79f4e0c16dcff200b0417567ed22aeb2d7166  # github-v1.2.28
         env:
-          # The action never answers a permission prompt: a command the role's config
-          # leaves on "ask" would wait until the timeout. Here it is denied instead,
-          # and the agent goes on without it (explicit allow and deny rules stay).
+          # The CLI ignores the action's agent input and runs default_agent, so
+          # the role is set here. The action never answers a permission prompt: a
+          # command the role's config leaves on "ask" would wait until the timeout.
+          # Here it is denied instead, and the agent goes on without it (explicit
+          # allow and deny rules stay).
           OPENCODE_CONFIG_CONTENT: >-
-            {"permission": {"bash": {"*": "deny"}, "webfetch": "deny",
+            {"default_agent": "${{ needs.route.outputs.role }}",
+            "permission": {"bash": {"*": "deny"}, "webfetch": "deny",
             "external_directory": "deny", "doom_loop": "deny"},
             "agent": {"${{ needs.route.outputs.role }}": {"permission":
             {"bash": {"*": "deny"}, "webfetch": "deny"}}}}
