@@ -80,6 +80,27 @@ export async function getOrders(
   return (await res.json()) as OrderPage;
 }
 
+export type Order = components['schemas']['Order'];
+export type OrderTarget = components['schemas']['StatusChangeRequest']['to'];
+
+/** One order with its lines and history; ApiError 404 when unknown. */
+export async function getOrder(number: string, signal?: AbortSignal): Promise<Order> {
+  const res = await staffRequest(`/orders/${encodeURIComponent(number)}`, signal ? { signal } : {});
+  return (await res.json()) as Order;
+}
+
+/** Moves an order to a new status; ApiError 409 (changed meanwhile) or 422 (bad reason). */
+export async function changeStatus(
+  number: string,
+  change: { to: OrderTarget; version: number; reason?: string },
+): Promise<Order> {
+  const res = await staffRequest(`/orders/${encodeURIComponent(number)}/status`, {
+    method: 'POST',
+    body: change,
+  });
+  return (await res.json()) as Order;
+}
+
 /** The staff member of the current session; ApiError 401 when there is none. */
 export async function getMe(signal?: AbortSignal): Promise<StaffUser> {
   // plain request: the auth provider reads the 401 of this one itself

@@ -1,42 +1,21 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import type { OrderSummary } from '../api/client';
 import { formatAmount, formatDateTime } from '../lib/format';
+import { useWide } from '../lib/useWide';
 import { StatusBadge } from './StatusBadge';
-
-/** True from the `--bp-md` token width up (the table); below it the cards are shown. */
-function useWide(): boolean {
-  const query = () => {
-    const bp = getComputedStyle(document.documentElement).getPropertyValue('--bp-md').trim();
-    return `(min-width: ${bp || '768px'})`;
-  };
-  const get = () => (typeof matchMedia === 'function' ? matchMedia(query()).matches : true);
-  const [wide, setWide] = useState(get);
-  useEffect(() => {
-    if (typeof matchMedia !== 'function') return;
-    const mq = matchMedia(query());
-    const on = () => {
-      setWide(mq.matches);
-    };
-    on();
-    mq.addEventListener('change', on);
-    return () => {
-      mq.removeEventListener('change', on);
-    };
-  }, []);
-  return wide;
-}
 
 /** The orders of one page: a table from `--bp-md`, cards below. Presentational. */
 export function OrdersResults({ items }: { items: OrderSummary[] }) {
   const wide = useWide();
+  // the detail page returns to this exact list view
+  const state = { fromSearch: useLocation().search };
   if (!wide) {
     return (
       <ul className="cards">
         {items.map((o) => (
           <li key={o.number} className="card">
             <div className="card-head">
-              <Link to={`/orders/${o.number}`} className="order-number">
+              <Link to={`/orders/${o.number}`} state={state} className="order-number">
                 {o.number}
               </Link>
               <StatusBadge status={o.status} />
@@ -68,7 +47,7 @@ export function OrdersResults({ items }: { items: OrderSummary[] }) {
         {items.map((o) => (
           <tr key={o.number}>
             <td>
-              <Link to={`/orders/${o.number}`} className="order-number">
+              <Link to={`/orders/${o.number}`} state={state} className="order-number">
                 {o.number}
               </Link>
             </td>
