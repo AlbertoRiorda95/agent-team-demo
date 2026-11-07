@@ -24,5 +24,24 @@ The repository is a monorepo:
 
 Stack: TypeScript everywhere, npm, Node 24.
 
+## Run it
+
+With Node 24, Docker and a GitHub token with `read:packages`: log in to the
+registry (`./ci/registry.sh login`), `npm ci`, `npm ci --prefix packages/money`,
+copy `.env.example` to `.env` and fill its two secrets, `docker compose up -d postgres`,
+`npm run db:migrate -w services/orders`, create an account with
+`npm run user:create -w services/orders -- --email <e> --name <n>`, then
+`npm run dev -w services/orders` and `npm run dev -w apps/web`, and open
+http://localhost:5173. Every step, with the full-container variant:
+[install and operate](docs/software/install-and-operate.md).
+
+## Documentation
+
+- [Install and operate](docs/software/install-and-operate.md): requirements,
+  install, configuration, run, accounts, demo data, upgrade, back up,
+  troubleshooting.
+- [User manual](docs/software/user-manual.md): logging in, finding an order,
+  checking it, changing its status.
+
 Out of scope: payments, authentication beyond a single staff login, real
 shipping.
