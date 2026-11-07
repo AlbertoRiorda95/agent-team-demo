@@ -45,3 +45,59 @@ export function applyStatusChain(steps: readonly StatusStep[]): {
   }
   return { status, version: 1 + steps.length };
 }
+
+/** The longest cancellation reason, after trimming (order-detail). */
+export const MAX_REASON_LENGTH = 500;
+
+/** Thrown when a status change request breaks an input rule (422 at the edge). */
+export class InvalidStatusChangeError extends Error {
+  override readonly name = 'InvalidStatusChangeError';
+  constructor(
+    readonly field: string,
+    readonly problem: string,
+  ) {
+    super(`${field} ${problem}`);
+  }
+}
+
+/**
+ * The reason to store with a change to `to`: only a cancellation may have
+ * one; it is trimmed, at most MAX_REASON_LENGTH characters, and an empty one
+ * is no reason. Throws InvalidStatusChangeError otherwise.
+ */
+export function statusChangeReason(
+  to: OrderStatus,
+  reason: string | undefined,
+): string | undefined {
+  if (reason === undefined) return undefined;
+  if (to !== 'cancelled') {
+    throw new InvalidStatusChangeError('reason', 'is allowed only when cancelling an order');
+  }
+  const trimmed = reason.trim();
+  if (trimmed.length > MAX_REASON_LENGTH) {
+    throw new InvalidStatusChangeError(
+      'reason',
+      `must be at most ${String(MAX_REASON_LENGTH)} characters`,
+    );
+  }
+  return trimmed === '' ? undefined : trimmed;
+}
+
+/** Why a status change cannot be applied to the order as it is now. */
+export type StatusChangeConflict = 'stale-version' | 'not-allowed';
+
+/**
+ * Checks a change to `to` of an order in state `current`, requested for
+ * `expectedVersion`: the version first (a client with a stale order must
+ * reload, never see a misleading transition error), then the transition.
+ * `undefined` when the change may be applied.
+ */
+export function statusChangeConflict(
+  current: { readonly status: OrderStatus; readonly version: number },
+  expectedVersion: number,
+  to: OrderStatus,
+): StatusChangeConflict | undefined {
+  if (current.version !== expectedVersion) return 'stale-version';
+  if (!canChangeStatus(current.status, to)) return 'not-allowed';
+  return undefined;
+}
