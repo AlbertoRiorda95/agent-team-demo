@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Propose the split
         if: steps.mode.outputs.mode == 'propose'
-        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6  # v1.0.264
+        uses: anthropics/claude-code-action@c0949c50a78c1ec8ce2647db36629b870e715d0c  # v1.0.268
         id: claude
         env:
           # In CI everything runs in the foreground: background subagents or commands are lost when the run ends.
