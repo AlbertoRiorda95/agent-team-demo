@@ -73,6 +73,182 @@ const submitLogin = async (page: Page) => {
   await page.getByRole('button', { name: 'Log in' }).click();
 };
 
+const eur = (a: string) => ({ amount: a, currency: 'EUR' });
+const detail = (over: Record<string, unknown> = {}) => ({
+  number: 'ORD-000123',
+  externalReference: 'EXT-1',
+  status: 'new',
+  version: 1,
+  currency: 'EUR',
+  customer: { name: 'Ana Ruiz', email: 'ana.ruiz@shop.test' },
+  shippingAddress: {
+    name: 'Ana Ruiz',
+    line1: '1 Main Street',
+    line2: 'Floor 3',
+    city: 'Madrid',
+    postalCode: '28001',
+    country: 'ES',
+  },
+  items: [
+    { sku: 'MUG-001', name: 'Mug', quantity: 2, unitPrice: eur('5.00'), lineTotal: eur('10.00') },
+    {
+      sku: 'PLATE-002',
+      name: 'A plate with a rather long product name',
+      quantity: 1,
+      unitPrice: eur('7.50'),
+      lineTotal: eur('7.50'),
+    },
+  ],
+  shippingCost: eur('2.50'),
+  total: eur('20.00'),
+  history: [],
+  createdAt: '2026-11-01T10:00:00Z',
+  updatedAt: '2026-11-01T10:00:00Z',
+  ...over,
+});
+const change = (from: string, to: string, reason?: string) => ({
+  from,
+  to,
+  ...(reason ? { reason } : {}),
+  changedBy: { id: staff.id, name: 'Ana' },
+  at: '2026-11-07T10:42:00Z',
+});
+const paidOrder = detail({ status: 'paid', version: 2, history: [change('new', 'paid')] });
+
+/** Mocks the order `ORD-000123` as `GET`; `post` answers `POST .../status` (default: 200 paid). */
+const orderApi = async (
+  page: Page,
+  get: () => { status?: number; json: unknown },
+  post?: (body: Record<string, unknown>) => { status?: number; json: unknown },
+) => {
+  await session(page, true);
+  await page.route('**/api/v1/orders/ORD-**', (r) => {
+    const isPost = r.request().method() === 'POST';
+    const answer = isPost
+      ? (post?.(r.request().postDataJSON() as Record<string, unknown>) ?? { json: paidOrder })
+      : get();
+    return r.fulfill({
+      status: answer.status ?? 200,
+      contentType: (answer.status ?? 200) >= 400 ? 'application/problem+json' : 'application/json',
+      json: answer.json,
+    });
+  });
+};
+const problemOf = (status: number, extra: object = {}) => ({
+  json: { ...problem, status, ...extra },
+});
+
+function detailScreens(): Screen[] {
+  const base = (name: string, status: string, history: unknown[], expect: string): Screen => ({
+    name,
+    path: '/orders/ORD-000123',
+    expect,
+    mock: (page) => orderApi(page, () => ({ json: detail({ status, history }) })),
+  });
+  return [
+    base('detail-new', 'new', [], 'No status changes yet'),
+    base('detail-paid', 'paid', [change('new', 'paid')], 'Mark shipped'),
+    base(
+      'detail-shipped',
+      'shipped',
+      [change('new', 'paid'), change('paid', 'shipped')],
+      'This order is final',
+    ),
+    base(
+      'detail-cancelled',
+      'cancelled',
+      [change('new', 'cancelled', 'Customer asked to cancel')],
+      'Customer asked to cancel',
+    ),
+    {
+      name: 'detail-loading',
+      path: '/orders/ORD-000123',
+      expect: 'Loading order…',
+      mock: async (page) => {
+        await session(page, true);
+        await page.route('**/api/v1/orders/ORD-**', () => new Promise(() => undefined));
+      },
+    },
+    {
+      name: 'detail-load-error',
+      path: '/orders/ORD-000123',
+      expect: "Can't load the order.",
+      mock: (page) => orderApi(page, () => ({ status: 503, ...problemOf(503) })),
+    },
+    {
+      name: 'detail-not-found',
+      path: '/orders/ORD-999999',
+      expect: "We can't find that page.",
+      mock: (page) => orderApi(page, () => ({ status: 404, ...problemOf(404) })),
+    },
+    {
+      name: 'detail-malformed-number',
+      path: '/orders/nope',
+      expect: "We can't find that page.",
+      mock: (page) => session(page, true),
+    },
+    {
+      name: 'detail-unknown-route',
+      path: '/nowhere',
+      expect: "We can't find that page.",
+      mock: (page) => session(page, true),
+    },
+    {
+      name: 'detail-conflict',
+      path: '/orders/ORD-000123',
+      expect: 'This order changed: reload.',
+      mock: (page) =>
+        orderApi(
+          page,
+          () => ({ json: detail() }),
+          () => ({ status: 409, ...problemOf(409, { currentStatus: 'paid', currentVersion: 2 }) }),
+        ),
+      act: (page) => page.getByRole('button', { name: 'Mark paid' }).click(),
+    },
+    {
+      name: 'detail-change-failed',
+      path: '/orders/ORD-000123',
+      expect: "Couldn't change the status.",
+      mock: (page) =>
+        orderApi(
+          page,
+          () => ({ json: detail() }),
+          () => ({ status: 503, ...problemOf(503) }),
+        ),
+      act: (page) => page.getByRole('button', { name: 'Mark paid' }).click(),
+    },
+    {
+      name: 'detail-toast',
+      path: '/orders/ORD-000123',
+      expect: 'Order ORD-000123 marked as paid',
+      mock: (page) => orderApi(page, () => ({ json: detail() })),
+      act: (page) => page.getByRole('button', { name: 'Mark paid' }).click(),
+    },
+    {
+      name: 'detail-cancel-dialog',
+      path: '/orders/ORD-000123',
+      expect: 'Cancel order ORD-000123?',
+      mock: (page) => orderApi(page, () => ({ json: detail() })),
+      act: (page) => page.getByRole('button', { name: 'Cancel', exact: true }).click(),
+    },
+    {
+      name: 'detail-cancel-dialog-422',
+      path: '/orders/ORD-000123',
+      expect: 'The reason is not valid',
+      mock: (page) =>
+        orderApi(
+          page,
+          () => ({ json: detail() }),
+          () => ({ status: 422, ...problemOf(422) }),
+        ),
+      act: async (page) => {
+        await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await page.getByRole('button', { name: 'Cancel order' }).click();
+      },
+    },
+  ];
+}
+
 const screens: Screen[] = [
   {
     name: 'list-page-1',
@@ -206,6 +382,7 @@ const screens: Screen[] = [
     mock: (page) => loginAnswer(page, 503),
     act: submitLogin,
   },
+  ...detailScreens(),
   // the login request never answers: the button is busy
   {
     name: 'login-submitting',
@@ -227,7 +404,8 @@ for (const s of screens) {
     if (s.mock) await s.mock(page);
     await page.goto(s.path);
     if (s.act) {
-      await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
+      const ready = s.path.startsWith('/login') ? 'Log in' : /Mark paid|Cancel/;
+      await expect(page.getByRole('button', { name: ready }).first()).toBeVisible();
       await s.act(page);
     }
     await expect(page.getByText(s.expect).first()).toBeVisible();
@@ -393,4 +571,60 @@ test('flow: Retry after a failure loads the list', async ({ page }) => {
   fail = false;
   await page.getByRole('button', { name: 'Retry' }).click();
   await expect(page.getByText('1–25 of 137 orders')).toBeVisible();
+});
+
+test('flow: Back to orders keeps the list query; opened by URL it goes to /', async ({ page }) => {
+  await session(page, true);
+  await ordersApi(page);
+  await page.route('**/api/v1/orders/ORD-**', (r) => r.fulfill({ json: detail() }));
+
+  await page.goto('/?status=paid&q=ana&page=2');
+  await page.getByRole('link', { name: 'ORD-000026' }).click();
+  await expect(page).toHaveURL(/\/orders\/ORD-000026$/);
+  await page.getByRole('link', { name: 'Back to orders' }).click();
+  await expect(page).toHaveURL(/\/\?status=paid&q=ana&page=2$/);
+
+  await page.goto('/orders/ORD-000123');
+  await page.getByRole('link', { name: 'Back to orders' }).click();
+  await expect(page).toHaveURL(/localhost:\d+\/$/);
+});
+
+test('flow: the cancel dialog closes with Escape and returns focus to its button', async ({
+  page,
+}) => {
+  await orderApi(page, () => ({ json: detail() }));
+  await page.goto('/orders/ORD-000123');
+  const cancel = page.getByRole('button', { name: 'Cancel', exact: true });
+  await cancel.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Cancel order ORD-000123?' });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(cancel).toBeFocused();
+});
+
+test('flow: cancelling sends the reason and shows the cancelled order', async ({ page }) => {
+  let body: Record<string, unknown> = {};
+  await orderApi(
+    page,
+    () => ({ json: detail() }),
+    (b) => {
+      body = b;
+      return {
+        json: detail({
+          status: 'cancelled',
+          version: 2,
+          history: [change('new', 'cancelled', 'Out of stock')],
+        }),
+      };
+    },
+  );
+  await page.goto('/orders/ORD-000123');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByLabel('Reason (optional)').fill('Out of stock');
+  await page.getByRole('button', { name: 'Cancel order' }).click();
+  await expect(page.getByText('This order is final')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Order ORD-000123 marked as cancelled');
+  expect(body).toEqual({ to: 'cancelled', version: 1, reason: 'Out of stock' });
 });
