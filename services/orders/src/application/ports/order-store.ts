@@ -64,6 +64,11 @@ export interface OrderListResult {
 export interface OrderStore {
   findByExternalReference(externalReference: string): Promise<OrderRecord | undefined>;
   /**
+   * The order with this exact number, its lines in the order they were sent
+   * and its status history oldest first; `undefined` when there is none.
+   */
+  findByNumber(number: string): Promise<OrderRecord | undefined>;
+  /**
    * Stores the order, its lines and a new number (`numberFor` of the next
    * sequence value) in one transaction, in status `new`, version 1.
    * Throws ExternalReferenceTakenError when the reference is already used.
