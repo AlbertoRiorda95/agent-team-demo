@@ -190,6 +190,7 @@ describe('createOrder', () => {
         return Promise.resolve(lookups === 1 ? undefined : winner);
       },
       insert: () => Promise.reject(new ExternalReferenceTakenError()),
+      findByNumber: (number) => memory.findByNumber(number),
       list: (query) => memory.list(query),
     };
     const result = await createOrder(

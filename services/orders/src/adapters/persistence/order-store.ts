@@ -4,10 +4,11 @@ import {
   ExternalReferenceTakenError,
   type OrderRecord,
   type OrderStore,
+  type StatusChangeRecord,
 } from '../../application/ports/order-store.js';
 import { orderLine, type Address, type OrderStatus } from '../../domain/order.js';
 import type { Db } from './database.js';
-import { orderLines, orders } from './schema.js';
+import { orderLines, orders, staffUsers, statusChanges } from './schema.js';
 
 const UNIQUE_VIOLATION = '23505';
 const EXTERNAL_REFERENCE_KEY = 'orders_external_reference_key';
@@ -19,20 +20,11 @@ type LineRow = typeof orderLines.$inferSelect;
 export function createOrderStore(db: Db): OrderStore {
   return {
     async findByExternalReference(externalReference) {
-      const rows = await db
-        .select()
-        .from(orders)
-        .where(eq(orders.externalReference, externalReference))
-        .limit(1);
-      const row = rows[0];
-      if (!row) return undefined;
-      const lines = await db
-        .select()
-        .from(orderLines)
-        .where(eq(orderLines.orderId, row.id))
-        .orderBy(asc(orderLines.position));
-      // status history arrives with order-detail; nothing writes it yet
-      return toRecord(row, lines);
+      return findOne(db, eq(orders.externalReference, externalReference));
+    },
+
+    async findByNumber(number) {
+      return findOne(db, eq(orders.number, number));
     },
 
     async insert(draft, { now, numberFor }) {
@@ -80,9 +72,11 @@ export function createOrderStore(db: Db): OrderStore {
               })),
             )
             .returning();
+          // a new order has no status change yet
           return toRecord(
             row,
             lines.sort((a, b) => a.position - b.position),
+            [],
           );
         });
       } catch (error) {
@@ -152,7 +146,45 @@ export function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, '\\$&');
 }
 
-function toRecord(row: OrderRow, lines: LineRow[]): OrderRecord {
+/** The order matching `where` (a unique column), with its lines and history. */
+async function findOne(db: Db, where: SQL): Promise<OrderRecord | undefined> {
+  const rows = await db.select().from(orders).where(where).limit(1);
+  const row = rows[0];
+  if (!row) return undefined;
+  const lines = await db
+    .select()
+    .from(orderLines)
+    .where(eq(orderLines.orderId, row.id))
+    .orderBy(asc(orderLines.position));
+  const changes = await db
+    .select({
+      fromStatus: statusChanges.fromStatus,
+      toStatus: statusChanges.toStatus,
+      reason: statusChanges.reason,
+      changedById: statusChanges.changedBy,
+      changedByName: staffUsers.name,
+      at: statusChanges.at,
+    })
+    .from(statusChanges)
+    .innerJoin(staffUsers, eq(staffUsers.id, statusChanges.changedBy))
+    .where(eq(statusChanges.orderId, row.id))
+    .orderBy(asc(statusChanges.at), asc(statusChanges.id));
+  const history: StatusChangeRecord[] = changes.map((c) => ({
+    // the application writes only the four statuses
+    from: c.fromStatus as OrderStatus,
+    to: c.toStatus as OrderStatus,
+    ...(c.reason === null ? {} : { reason: c.reason }),
+    changedBy: { id: c.changedById, name: c.changedByName },
+    at: c.at,
+  }));
+  return toRecord(row, lines, history);
+}
+
+function toRecord(
+  row: OrderRow,
+  lines: LineRow[],
+  history: readonly StatusChangeRecord[],
+): OrderRecord {
   // the check constraints keep currency and status within these values
   const currency = row.currency as CurrencyCode;
   const shippingAddress: Address = {
@@ -175,7 +207,7 @@ function toRecord(row: OrderRow, lines: LineRow[]): OrderRecord {
     items: lines.map((l) => orderLine(l.sku, l.name, l.quantity, fromMinor(l.unitPrice, currency))),
     shippingCost: fromMinor(row.shippingCost, currency),
     total: fromMinor(row.total, currency),
-    history: [],
+    history,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

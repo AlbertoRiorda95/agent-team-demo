@@ -44,8 +44,9 @@ interface ValidationIssue {
 }
 
 /**
- * Error handler: request validation and malformed bodies become 422 with the
- * invalid fields, other client errors keep their status, anything else is a
+ * Error handler: an invalid path parameter (a malformed order number) is a
+ * 404, as the contract says; other request validation and malformed bodies
+ * become 422 with the invalid fields, other client errors keep their status, anything else is a
  * 500 with no internal detail (the error is logged).
  */
 export function handleError(
@@ -53,6 +54,10 @@ export function handleError(
   request: FastifyRequest,
   reply: FastifyReply,
 ): FastifyReply {
+  // a path parameter outside its pattern (`/orders/123`) names no resource
+  if (error.validation && error.validationContext === 'params') {
+    return sendProblem(reply, { type: 'about:blank', title: 'Not Found', status: 404 });
+  }
   if (error.validation) {
     return sendProblem(reply, {
       type: 'about:blank',

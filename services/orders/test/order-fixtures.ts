@@ -96,6 +96,7 @@ export function memoryOrderStore(): MemoryOrderStore {
     orders,
     findByExternalReference: (ref) =>
       Promise.resolve(orders.find((o) => o.externalReference === ref)),
+    findByNumber: (number) => Promise.resolve(orders.find((o) => o.number === number)),
     insert: (draft, { now, numberFor }) => {
       sequence += 1;
       if (orders.some((o) => o.externalReference === draft.externalReference)) {
