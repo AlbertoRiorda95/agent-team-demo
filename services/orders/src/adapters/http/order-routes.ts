@@ -1,5 +1,6 @@
-// Handlers of GET /orders (orders-list) and GET /orders/{number}
-// (order-detail), after the session guard, and POST /orders (order-intake,
+// Handlers of GET /orders (orders-list), GET /orders/{number} and POST
+// /orders/{number}/status (order-detail), after the session guard (and its
+// CSRF check on the POST), and POST /orders (order-intake,
 // after the API key guard). All run after the contract's schema validation;
 // the use cases hold the rules.
 import { toJSON } from '@albertoriorda95/money';
@@ -9,14 +10,26 @@ import {
   type CreateOrderDeps,
   type CreateOrderResult,
 } from '../../application/create-order.js';
+import {
+  changeOrderStatus,
+  type ChangeOrderStatusResult,
+} from '../../application/change-order-status.js';
 import { getOrder } from '../../application/get-order.js';
 import { listOrders, type ListOrdersInput } from '../../application/list-orders.js';
 import type { OrderRecord, OrderSummaryRecord } from '../../application/ports/order-store.js';
-import { InvalidOrderError, type NewOrderInput } from '../../domain/order.js';
+import { InvalidOrderError, type NewOrderInput, type OrderStatus } from '../../domain/order.js';
+import { InvalidStatusChangeError } from '../../domain/order-status.js';
 import { sendProblem } from './problem.js';
 
 /** The request body limit of POST /orders (the contract's 256 KB). */
 export const CREATE_ORDER_BODY_LIMIT = 256 * 1024;
+
+/** The contract's StatusChangeRequest, as validated. */
+interface StatusChangeBody {
+  readonly to: Extract<OrderStatus, 'paid' | 'shipped' | 'cancelled'>;
+  readonly reason?: string;
+  readonly version: number;
+}
 
 export function orderHandlers(deps: CreateOrderDeps): Record<string, RouteHandlerMethod> {
   return {
@@ -49,6 +62,54 @@ export function orderHandlers(deps: CreateOrderDeps): Record<string, RouteHandle
         });
       }
       return reply.send(orderResponse(order));
+    },
+    'POST /api/v1/orders/{number}/status': async (request, reply) => {
+      // number matched against OrderNumber, body against StatusChangeRequest
+      const { number } = request.params as { number: string };
+      const body = request.body as StatusChangeBody;
+      // the session guard ran: a session operation always has its user
+      const user = request.staffUser;
+      if (!user) throw new Error('POST /orders/{number}/status reached without a session user');
+      let result: ChangeOrderStatusResult;
+      try {
+        result = await changeOrderStatus(deps, {
+          number,
+          to: body.to,
+          reason: body.reason,
+          version: body.version,
+          changedBy: user.id,
+        });
+      } catch (error) {
+        if (!(error instanceof InvalidStatusChangeError)) throw error;
+        return sendProblem(reply, {
+          type: 'about:blank',
+          title: 'Validation failed',
+          status: 422,
+          errors: [{ field: error.field, message: error.problem }],
+        });
+      }
+      if (result.kind === 'not-found') {
+        return sendProblem(reply, {
+          type: 'about:blank',
+          title: 'Not Found',
+          status: 404,
+          detail: 'No such order.',
+        });
+      }
+      if (result.kind === 'conflict') {
+        return sendProblem(reply, {
+          type: 'about:blank',
+          title: 'Conflict',
+          status: 409,
+          detail:
+            result.conflict === 'stale-version'
+              ? 'The order changed meanwhile: reload it.'
+              : `An order in status ${result.currentStatus} cannot move to ${body.to}.`,
+          currentStatus: result.currentStatus,
+          currentVersion: result.currentVersion,
+        });
+      }
+      return reply.send(orderResponse(result.order));
     },
     'POST /api/v1/orders': async (request, reply) => {
       let result: CreateOrderResult;

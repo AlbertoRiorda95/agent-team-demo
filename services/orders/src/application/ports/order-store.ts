@@ -60,6 +60,19 @@ export interface OrderListResult {
   readonly total: number;
 }
 
+/** A status change to write, valid for the order as it was read. */
+export interface StatusChangeWrite {
+  readonly orderId: string;
+  /** The order's status and version the change was checked against. */
+  readonly from: OrderStatus;
+  readonly expectedVersion: number;
+  readonly to: OrderStatus;
+  readonly reason?: string;
+  /** The staff user's id. */
+  readonly changedBy: string;
+  readonly at: Date;
+}
+
 /** Port: persistence of orders. */
 export interface OrderStore {
   findByExternalReference(externalReference: string): Promise<OrderRecord | undefined>;
@@ -82,4 +95,12 @@ export interface OrderStore {
    * the total of the filter. An offset at or beyond the total gives no items.
    */
   list(query: OrderListQuery): Promise<OrderListResult>;
+  /**
+   * In one transaction, and only while the order still has status `from` and
+   * version `expectedVersion` (an atomic conditional update): sets status
+   * `to`, version + 1 and `updatedAt` = `at`, and appends the StatusChange.
+   * Returns the updated order, or `undefined` when the order changed
+   * meanwhile (nothing is written then).
+   */
+  changeStatus(change: StatusChangeWrite): Promise<OrderRecord | undefined>;
 }

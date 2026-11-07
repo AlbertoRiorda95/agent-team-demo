@@ -111,6 +111,7 @@ const IMPLEMENTED = [
   'GET /api/v1/orders',
   'POST /api/v1/orders',
   'GET /api/v1/orders/{number}',
+  'POST /api/v1/orders/{number}/status',
 ];
 
 const sessionHeaders = { cookie: `session=${VALID_TOKEN}`, origin: WEB.publicOrigin };
@@ -184,11 +185,29 @@ describe('contract', () => {
   );
 
   const notImplemented = Object.keys(validRequests).filter((key) => !IMPLEMENTED.includes(key));
-  it.each(notImplemented)('%s answers 501 problem+json (with a session)', async (key) => {
-    const res = await app.inject(requestFor(key, sessionHeaders));
-    expect(res.statusCode).toBe(501);
-    expect(res.headers['content-type']).toMatch(/^application\/problem\+json/);
-    expect(res.json()).toEqual({ type: 'about:blank', title: 'Not implemented yet', status: 501 });
+  it('has a handler for every /api/v1 operation', () => {
+    expect(notImplemented).toEqual([]);
+  });
+
+  it('answers 501 problem+json for an operation without a handler', async () => {
+    // without order options no order handler is registered
+    const bare = buildApp({
+      databaseHealth: { isReachable: () => Promise.resolve(true) },
+      auth: fakeAuth(),
+      web: WEB,
+    });
+    try {
+      const res = await bare.inject(requestFor('GET /api/v1/orders/{number}', sessionHeaders));
+      expect(res.statusCode).toBe(501);
+      expect(res.headers['content-type']).toMatch(/^application\/problem\+json/);
+      expect(res.json()).toEqual({
+        type: 'about:blank',
+        title: 'Not implemented yet',
+        status: 501,
+      });
+    } finally {
+      await bare.close();
+    }
   });
 });
 

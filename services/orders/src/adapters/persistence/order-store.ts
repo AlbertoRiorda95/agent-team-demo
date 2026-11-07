@@ -15,6 +15,7 @@ const EXTERNAL_REFERENCE_KEY = 'orders_external_reference_key';
 
 type OrderRow = typeof orders.$inferSelect;
 type LineRow = typeof orderLines.$inferSelect;
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /** Drizzle implementation of the OrderStore port. */
 export function createOrderStore(db: Db): OrderStore {
@@ -87,6 +88,39 @@ export function createOrderStore(db: Db): OrderStore {
       }
     },
 
+    async changeStatus(change) {
+      return db.transaction(async (tx) => {
+        // the conditional update is the atomic version check: of two
+        // concurrent changes with one version, the second waits on the row
+        // lock, then matches no row
+        const updated = await tx
+          .update(orders)
+          .set({
+            status: change.to,
+            version: sql`${orders.version} + 1`,
+            updatedAt: change.at,
+          })
+          .where(
+            and(
+              eq(orders.id, change.orderId),
+              eq(orders.version, change.expectedVersion),
+              eq(orders.status, change.from),
+            ),
+          )
+          .returning({ id: orders.id });
+        if (updated.length === 0) return undefined;
+        await tx.insert(statusChanges).values({
+          orderId: change.orderId,
+          fromStatus: change.from,
+          toStatus: change.to,
+          reason: change.reason ?? null,
+          changedBy: change.changedBy,
+          at: change.at,
+        });
+        return findOne(tx, eq(orders.id, change.orderId));
+      });
+    },
+
     async list({ status, search, offset, limit }) {
       const where = and(
         status === undefined ? undefined : eq(orders.status, status),
@@ -147,7 +181,7 @@ export function escapeLike(text: string): string {
 }
 
 /** The order matching `where` (a unique column), with its lines and history. */
-async function findOne(db: Db, where: SQL): Promise<OrderRecord | undefined> {
+async function findOne(db: Db | Tx, where: SQL): Promise<OrderRecord | undefined> {
   const rows = await db.select().from(orders).where(where).limit(1);
   const row = rows[0];
   if (!row) return undefined;
