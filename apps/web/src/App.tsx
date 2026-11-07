@@ -1,6 +1,6 @@
 import { Route, Routes } from 'react-router';
 import { AuthProvider } from './auth/AuthProvider';
-import { HomePage } from './pages/HomePage';
+import { OrdersListPage } from './pages/OrdersListPage';
 import { LoginPage } from './pages/LoginPage';
 import { Shell } from './Shell';
 
@@ -11,7 +11,7 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<Shell />}>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<OrdersListPage />} />
         </Route>
       </Routes>
     </AuthProvider>

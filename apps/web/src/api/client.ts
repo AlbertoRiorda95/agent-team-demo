@@ -1,7 +1,9 @@
-import type { components, paths } from './schema';
+import type { components } from './schema';
 
-type Health = paths['/health']['get']['responses'][200]['content']['application/json'];
 export type StaffUser = components['schemas']['StaffUser'];
+export type OrderPage = components['schemas']['OrderPage'];
+export type OrderSummary = components['schemas']['OrderSummary'];
+type OrderStatus = components['schemas']['OrderStatus'];
 
 const BASE = '/api/v1';
 
@@ -64,14 +66,18 @@ async function staffRequest(path: string, opts: Options = {}): Promise<Response>
   }
 }
 
-/** Fetches the service health. Throws when the service is unreachable or not ok. */
-export async function getHealth(signal?: AbortSignal): Promise<Health> {
-  const res = await fetch('/health', {
-    headers: { Accept: 'application/json' },
-    ...(signal ? { signal } : {}),
-  });
-  if (!res.ok) throw new Error(`Health check failed (${String(res.status)})`);
-  return (await res.json()) as Health;
+/** One page of orders; ApiError on any failure (401 also signals the app). */
+export async function getOrders(
+  query: { status?: OrderStatus | undefined; q?: string; page?: number },
+  signal?: AbortSignal,
+): Promise<OrderPage> {
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.q) params.set('q', query.q);
+  if (query.page && query.page > 1) params.set('page', String(query.page));
+  const qs = params.toString();
+  const res = await staffRequest(`/orders${qs ? `?${qs}` : ''}`, signal ? { signal } : {});
+  return (await res.json()) as OrderPage;
 }
 
 /** The staff member of the current session; ApiError 401 when there is none. */
