@@ -207,6 +207,21 @@ test('Log out calls the API and goes to /login', async () => {
   expect(screen.getByTestId('where').textContent).toBe('/login');
 });
 
+test('an unknown route shows Not found inside the shell', async () => {
+  stubApi({ 'GET /api/v1/auth/me': json(200, user) });
+  renderAt('/nope/at/all');
+  expect(await screen.findByRole('heading', { name: 'Not found' })).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Back to orders' })).toBeTruthy();
+  expect(screen.getByText('Log out')).toBeTruthy();
+});
+
+test('an unknown route sends a signed-out visitor to login first', async () => {
+  stubApi({ 'GET /api/v1/auth/me': json(401, {}) });
+  renderAt('/nope');
+  expect(await screen.findByLabelText('Email')).toBeTruthy();
+  expect(screen.getByTestId('where').textContent).toBe('/login?next=%2Fnope');
+});
+
 test('safeNext only accepts paths of this site', () => {
   expect(safeNext('/orders?page=2')).toBe('/orders?page=2');
   expect(safeNext(null)).toBe('/');

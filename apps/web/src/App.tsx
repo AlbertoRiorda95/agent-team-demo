@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router';
 import { AuthProvider } from './auth/AuthProvider';
 import { OrdersListPage } from './pages/OrdersListPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { LoginPage } from './pages/LoginPage';
 import { Shell } from './Shell';
 
@@ -12,6 +13,7 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<Shell />}>
           <Route path="/" element={<OrdersListPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </AuthProvider>
