@@ -18,4 +18,6 @@ Your full role instructions are in `docs/roles/backend.md`.
 Read them at the start of every task and follow them to the letter. The project
 rules in `AGENTS.md` apply too.
 
-Before opening the merge request, run the security-review skill on the diff.
+Before opening the merge request, if the diff changes code that handles requests,
+authentication, permissions, secrets or data access, run the security-review skill
+on those files. Skip it for documentation, tests and configuration only.
