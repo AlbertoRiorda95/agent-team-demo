@@ -32,10 +32,13 @@ plan.
 Usage:
   python3 scripts/dispatch.py                       # the plan, changing nothing
   python3 scripts/dispatch.py --apply               # start what the plan says
+  python3 scripts/dispatch.py --apply --expect ID   # only if the plan is still the one shown (its "Plan: ID")
+  python3 scripts/dispatch.py --ask                 # show the plan, ask y/N in the terminal, start: no agent session
   python3 scripts/dispatch.py --per-role 2 --max 4  # more parallelism
   python3 scripts/dispatch.py --milestone M1 | --all
 """
 import argparse
+import hashlib
 import os
 import re
 import subprocess
@@ -190,9 +193,17 @@ def not_tasks(issues, label):
     return out
 
 
+def plan_id(start, updates):
+    """A short fingerprint of what --apply would do: the tasks to start and the issues to rewrite."""
+    what = [f"start {i.ref} {r}" for i, r in start] + [f"update {i.ref} {i.title}" for i, _ in updates]
+    return hashlib.sha256("\n".join(sorted(what)).encode()).hexdigest()[:8]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--expect", metavar="ID", help="with --apply: stop if the plan is no longer the one with this id")
+    ap.add_argument("--ask", action="store_true", help="show the plan, then ask before applying it (in a terminal)")
     ap.add_argument("--per-role", type=int, default=1)
     ap.add_argument("--max", type=int, default=3)
     ap.add_argument("--tracker", choices=config.TRACKERS)
@@ -226,11 +237,22 @@ def main():
     if hints:
         lines.append("\nNot tasks yet:")
         lines += hints
+    pid = plan_id(start, now.updates)
+    if start or now.updates:
+        lines.append(f"\nPlan: {pid}")
     text = "\n".join(lines)
     print(text)
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
             f.write("### Dispatch\n\n```\n" + text + "\n```\n")
+    if a.expect and a.expect != pid:
+        print(f"\nThe plan changed since {a.expect} (now {pid}): nothing started. Look at it again.", file=sys.stderr)
+        return 3
+    if a.ask and (start or now.updates):
+        try:
+            a.apply = input("\nApply this plan? [y/N] ").strip().lower() in ("y", "yes", "s", "si", "sì")
+        except EOFError:
+            a.apply = False
     if not a.apply:
         return 0
     failed = 0

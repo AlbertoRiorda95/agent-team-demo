@@ -44,6 +44,7 @@ into the feature or the task, as above.
 Usage:
   python3 scripts/create-issues.py --dry-run      # show the plan
   python3 scripts/create-issues.py                # create what is missing
+  python3 scripts/create-issues.py --ask          # the plan, then y/N in the terminal: no agent session
   python3 scripts/create-issues.py --team         # one agent:team issue per ready spec
   python3 scripts/create-issues.py --migrate      # GitHub/GitLab: from the old "M0 · ..." parent issues
 
@@ -51,6 +52,7 @@ Exit code 2 when the tracker cannot be reached or is not configured.
 """
 import argparse
 import os
+import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -63,7 +65,18 @@ def main():
     ap.add_argument("--team", action="store_true")
     ap.add_argument("--migrate", action="store_true")
     ap.add_argument("--tracker", "--platform", dest="tracker", choices=config.TRACKERS)
+    ap.add_argument("--ask", action="store_true", help="show the plan (a dry run), then ask before creating it")
     a = ap.parse_args()
+    if a.ask and not a.dry_run:
+        args = [x for x in sys.argv[1:] if x != "--ask"]
+        rc = subprocess.run([sys.executable, os.path.abspath(__file__), "--dry-run", *args]).returncode
+        if rc:
+            return rc
+        try:
+            if input("\nCreate this? [y/N] ").strip().lower() not in ("y", "yes", "s", "si", "sì"):
+                return 0
+        except EOFError:
+            return 0
 
     try:
         trk = config.tracker(config.load(), a.tracker)
