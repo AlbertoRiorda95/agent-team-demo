@@ -283,7 +283,9 @@ jobs:
           EOF
             echo "$end"
           } >> "$GITHUB_OUTPUT"
-      - uses: anomalyco/opencode/github@098aa7fd6e02b03d6fc410f0b052038c7d4c5e81  # v2.2.2
+      # The last release of the action: OpenCode removed it from its repository, and
+      # its later v* tags have no action (dependabot.yml ignores them).
+      - uses: anomalyco/opencode/github@17b79f4e0c16dcff200b0417567ed22aeb2d7166  # github-v1.2.28
         with:
           model: ${{ vars.OPENCODE_MODEL }}
           agent: ${{ needs.route.outputs.role }}

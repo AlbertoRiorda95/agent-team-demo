@@ -10,3 +10,6 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+    ignore:
+      # OpenCode no longer publishes its action: the tags after github-v1.2.28 have none
+      - dependency-name: "anomalyco/opencode*"
