@@ -114,5 +114,31 @@ export function memoryOrderStore(): MemoryOrderStore {
       orders.push(order);
       return Promise.resolve(order);
     },
+    list: ({ status, search, offset, limit }) => {
+      const needle = search?.toLowerCase();
+      const matching = orders
+        .filter((o) => status === undefined || o.status === status)
+        .filter(
+          (o) =>
+            needle === undefined ||
+            [o.number, o.customer.name, o.customer.email].some((field) =>
+              field.toLowerCase().includes(needle),
+            ),
+        )
+        .sort(
+          (a, b) =>
+            b.createdAt.getTime() - a.createdAt.getTime() || b.number.localeCompare(a.number),
+        );
+      return Promise.resolve({
+        items: matching.slice(offset, offset + limit).map((o) => ({
+          number: o.number,
+          status: o.status,
+          customerName: o.customer.name,
+          total: o.total,
+          createdAt: o.createdAt,
+        })),
+        total: matching.length,
+      });
+    },
   };
 }

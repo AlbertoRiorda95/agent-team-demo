@@ -102,6 +102,13 @@ export const orders = pgTable(
     uniqueIndex('orders_external_reference_key').on(t.externalReference),
     uniqueIndex('orders_number_key').on(t.number),
     index('orders_status_created_at_idx').on(t.status, t.createdAt.desc()),
+    // orders-list search (pg_trgm, created in migration 0003): contains, any case
+    index('orders_number_trgm_idx').using('gin', t.number.op('gin_trgm_ops')),
+    index('orders_customer_name_trgm_idx').using('gin', sql`lower(${t.customerName}) gin_trgm_ops`),
+    index('orders_customer_email_trgm_idx').using(
+      'gin',
+      sql`lower(${t.customerEmail}) gin_trgm_ops`,
+    ),
     check('orders_status_check', sql`${t.status} in ('new', 'paid', 'shipped', 'cancelled')`),
     check('orders_currency_check', sql`${t.currency} in ('EUR', 'USD', 'GBP', 'JPY')`),
     check('orders_amounts_check', sql`${t.shippingCost} >= 0 and ${t.total} >= 0`),

@@ -1,5 +1,5 @@
 import { fromMinor, type CurrencyCode } from '@albertoriorda95/money';
-import { asc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, or, sql, type SQL } from 'drizzle-orm';
 import {
   ExternalReferenceTakenError,
   type OrderRecord,
@@ -92,7 +92,64 @@ export function createOrderStore(db: Db): OrderStore {
         throw error;
       }
     },
+
+    async list({ status, search, offset, limit }) {
+      const where = and(
+        status === undefined ? undefined : eq(orders.status, status),
+        search === undefined ? undefined : matchesSearch(search),
+      );
+      // PERF: two queries (count, then the page); the count of a broad filter
+      // scans its matches. Measured fine at 10,000 orders (see the MR).
+      const counted = await db.select({ n: count() }).from(orders).where(where);
+      const total = counted[0]?.n ?? 0;
+      // a page beyond the last (or an offset too large for Postgres) has no rows
+      if (offset >= total) return { items: [], total };
+      const rows = await db
+        .select({
+          number: orders.number,
+          status: orders.status,
+          customerName: orders.customerName,
+          currency: orders.currency,
+          total: orders.total,
+          createdAt: orders.createdAt,
+        })
+        .from(orders)
+        .where(where)
+        .orderBy(desc(orders.createdAt), desc(orders.number))
+        .limit(limit)
+        .offset(offset);
+      return {
+        items: rows.map((row) => ({
+          number: row.number,
+          // the check constraints keep status and currency within these values
+          status: row.status as OrderStatus,
+          customerName: row.customerName,
+          total: fromMinor(row.total, row.currency as CurrencyCode),
+          createdAt: row.createdAt,
+        })),
+        total,
+      };
+    },
   };
+}
+
+/**
+ * Case-insensitive contains on number, customer name and email, with `%`,
+ * `_` and `\` taken literally. The expressions match the pg_trgm GIN indexes
+ * of migration 0003 (`number`, `lower(customer_name)`, `lower(customer_email)`).
+ */
+function matchesSearch(search: string): SQL | undefined {
+  const pattern = `%${escapeLike(search)}%`;
+  return or(
+    sql`${orders.number} ilike ${pattern} escape '\\'`,
+    sql`lower(${orders.customerName}) like lower(${pattern}) escape '\\'`,
+    sql`lower(${orders.customerEmail}) like lower(${pattern}) escape '\\'`,
+  );
+}
+
+/** Escapes the LIKE wildcards and the escape character itself. */
+export function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, '\\$&');
 }
 
 function toRecord(row: OrderRow, lines: LineRow[]): OrderRecord {
