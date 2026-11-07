@@ -35,7 +35,8 @@ export interface AppDependencies {
   readonly contractPath?: string;
   /**
    * Order intake (POST /orders). Without it, or without `apiKey`, the route
-   * answers 401 to every request: it never fails open.
+   * answers 401 to every request: it never fails open. Its store also serves
+   * the orders list (GET /orders, session).
    */
   readonly orders?: OrderIntakeOptions;
 }

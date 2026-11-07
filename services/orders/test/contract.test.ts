@@ -107,6 +107,7 @@ const IMPLEMENTED = [
   'POST /api/v1/auth/login',
   'POST /api/v1/auth/logout',
   'GET /api/v1/auth/me',
+  'GET /api/v1/orders',
   'POST /api/v1/orders',
 ];
 
